@@ -1,6 +1,6 @@
 /* Gavone: tiene l'app nel telefono per usarla anche senza internet.
    I dati (catalogo e foto) non passano di qui: stanno in IndexedDB. */
-const CACHE = "gavone-v1";
+const CACHE = "gavone-v2";
 const FILES = [
   "./", "index.html", "manifest.webmanifest", "qrcode.js", "jsQR.js",
   "icona-180.png", "icona-512.png",

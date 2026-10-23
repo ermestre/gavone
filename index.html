@@ -292,8 +292,9 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt
 const norm = s => String(s ?? "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"");
 const now = () => new Date().toISOString();
 const FOTOURL = {};
+const FOTOMEM = {};   /* foto appena scattate, tenute in memoria per mandarle subito ad Anthropic */
 const photoUrl = id => (id && FOTOURL[id]) || "";
-function toast(msg){ const r=$("#toastRoot"); r.innerHTML=`<div class="toast" role="status">${esc(msg)}</div>`; clearTimeout(toast.t); toast.t=setTimeout(()=>r.innerHTML="",2600); }
+function toast(msg){ const r=$("#toastRoot"); r.innerHTML=`<div class="toast" role="status">${esc(msg)}</div>`; clearTimeout(toast.t); toast.t=setTimeout(()=>r.innerHTML="",Math.min(9000,Math.max(2600,String(msg).length*70))); }
 function ambitoOf(name){ return S.ambiti.find(a=>a.nome===name) || {nome:name, prefisso:"ALT"}; }
 function contList(amb){ return Object.values(S.cont).filter(c=>!amb || c.ambito===amb).sort((a,b)=>String(a.codice).localeCompare(String(b.codice),"it",{numeric:true})); }
 function itemsIn(cid){ return Object.values(S.ogg).filter(o=>o.contenitore===cid).sort((a,b)=>String(a.nome).localeCompare(String(b.nome),"it")); }
@@ -574,9 +575,15 @@ function renderEtichette(m){
     const k=$("#apik").value.trim(); if (!k) return toast("Incolla prima la chiave");
     const b=e.currentTarget; b.disabled=true; b.textContent="Provo…";
     const old=CFG.apiKey; CFG.apiKey=k;
-    try{ await chiediClaude($("#mtesto").value,"Rispondi solo con la parola: ok",10); toast("La chiave funziona"); }
+    let ok=false;
+    try{ await chiediClaude($("#mfoto").value,"Rispondi solo con la parola: ok",20); ok=true; }
     catch(err){ toast(err.message); }
-    finally{ CFG.apiKey=old; b.disabled=false; b.textContent="Prova la chiave"; }
+    if (ok){
+      CFG.modelloFoto=$("#mfoto").value; CFG.modelloTesto=$("#mtesto").value;
+      try{ await idbPut("meta","impostazioni",{...CFG}); }catch{}
+      S.sample=true; toast("La chiave funziona ed è salvata"); render(); return;
+    }
+    CFG.apiKey=old; b.disabled=false; b.textContent="Prova la chiave";
   };
   (async()=>{ try{ const e=await navigator.storage?.estimate?.(); if (e) $("#spazio").textContent=`${(e.usage/1048576).toFixed(1)} MB usati${S.persistito?" · protetti":""}`; else $("#spazio").remove(); }catch{ $("#spazio")?.remove(); } })();
 }
@@ -896,11 +903,13 @@ async function analyzePhotos(c, files){
   try{ ids=await Promise.all(shots.map(s=>API.req("POST","api/foto",s.blob,ctl.signal).then(r=>r.id))); }
   catch(e){ if (ctl.signal.aborted) return; closeSheet(); return toast("Caricamento delle foto non riuscito: "+e.message); }
   let found=[];
+  if (!S.sample) toast("Riconoscimento spento: in Altro incolla la chiave API e tocca Salva. Intanto scrivi i nomi a mano.");
   if (S.sample){
     $("#aiMsg").innerHTML=`${dots} Riconosco gli oggetti nelle foto…`;
     try{
       const r=await API.req("POST","api/ai/riconosci",{contenitore:c.id,foto:ids,categorie:CATEGORIE},ctl.signal);
       found=(r.oggetti||[]).map(o=>({...o,_shot:Math.min(shots.length-1,Math.max(0,parseInt(o.shot,10)||0))}));
+      if (!found.length) toast("Nella foto non ho riconosciuto oggetti: scrivi i nomi a mano o rifai la foto più da vicino.");
     }catch(e){
       if (ctl.signal.aborted) return;
       toast((e.message||"Riconoscimento non riuscito")+" Scrivi i nomi a mano.");
@@ -1048,7 +1057,7 @@ const API = {
       if (method==="DELETE"){ await idbDel("docs",k); LV++; return {ok:true}; }
     }
     if (method==="POST" && url==="api/foto"){
-      const id=hexId(); await idbPut("foto",id,body); FOTOURL[id]=URL.createObjectURL(body); return {id};
+      const id=hexId(); FOTOMEM[id]=body; await idbPut("foto",id,body); FOTOURL[id]=URL.createObjectURL(body); return {id};
     }
     if (method==="POST" && url.startsWith("api/ai/")){
       const f=AI[url.slice(7)]; if (!f) throw httpErr(404,"Azione sconosciuta");
@@ -1096,7 +1105,14 @@ function soon(){ clearTimeout(syncT); syncT=setTimeout(()=>sync().catch(console.
 /* ---------- intelligenza artificiale: chiamate dirette dal telefono ---------- */
 function blobB64(b){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(String(r.result).split(",")[1]||""); r.onerror=()=>rej(r.error); r.readAsDataURL(b); }); }
 function b64Blob(b64,type){ const bin=atob(b64), u=new Uint8Array(bin.length); for (let i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i); return new Blob([u],{type}); }
-async function fotoBlock(id){ const b=await idbGet("foto",id); if (!b) return null; return {type:"image",source:{type:"base64",media_type:"image/jpeg",data:await blobB64(b)}}; }
+async function fotoBlock(id){
+  let b=FOTOMEM[id]||null, data="";
+  if (b){ try{ data=await blobB64(b); }catch{ data=""; } }
+  if (!data){ try{ b=await idbGet("foto",id); if (b) data=await blobB64(b); }catch{ data=""; } }
+  if (!data) return null;
+  const mt=/^image\/(jpeg|png|gif|webp)$/.test(b?.type||"")?b.type:"image/jpeg";
+  return {type:"image",source:{type:"base64",media_type:mt,data}};
+}
 async function chiediClaude(model, content, maxTokens, signal){
   if (!CFG.apiKey) throw new Error("Manca la chiave API: aggiungila in Altro → Riconoscimento foto.");
   let r;
@@ -1113,9 +1129,12 @@ async function chiediClaude(model, content, maxTokens, signal){
     if (r.status===404||msg.includes("model")) throw new Error(`Modello non disponibile (${model}): cambialo in Altro.`);
     if (r.status===429) throw new Error("Troppe richieste in poco tempo: riprova tra un minuto.");
     if (r.status>=500) throw new Error("Il servizio di Anthropic è sovraccarico: riprova tra poco.");
-    throw new Error(`Richiesta rifiutata (${r.status}).`);
+    const det=String(data?.error?.message||"").slice(0,220);
+    throw new Error(`Richiesta rifiutata (${r.status})${det?": "+det:"."}`);
   }
-  return (data?.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
+  const txt=(data?.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
+  if (!txt.trim() && data?.stop_reason==="max_tokens") throw new Error("La risposta è stata troncata: riprova con meno foto alla volta.");
+  return txt;
 }
 function estraiJson(t){
   t=String(t||"").trim();
@@ -1146,9 +1165,9 @@ const AI={
     const c=S.cont[body.contenitore]||{}, foto=(body.foto||[]).slice(0,40), cat=body.categorie||CATEGORIE, out=[];
     for (let start=0; start<foto.length; start+=10){
       const blocchi=(await Promise.all(foto.slice(start,start+10).map(fotoBlock))).filter(Boolean);
-      if (!blocchi.length) continue;
+      if (!blocchi.length) throw new Error("Non riesco a leggere la foto dal telefono: riprova.");
       const n=blocchi.length;
-      const r=estraiJson(await chiediClaude(CFG.modelloFoto,[...blocchi,{type:"text",text:promptRiconosci(c,n,cat)}],4000,signal));
+      const r=estraiJson(await chiediClaude(CFG.modelloFoto,[...blocchi,{type:"text",text:promptRiconosci(c,n,cat)}],16000,signal));
       const arr=Array.isArray(r?.oggetti)?r.oggetti:Array.isArray(r)?r:[];
       for (const o of arr){ if (!o||typeof o!=="object") continue; const k=Math.min(n,Math.max(1,parseInt(o.foto,10)||1)); out.push({...o,shot:start+k-1}); }
     }
