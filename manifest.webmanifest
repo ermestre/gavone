@@ -1,0 +1,15 @@
+{
+  "name": "Gavone",
+  "short_name": "Gavone",
+  "description": "Inventario dei contenitori con etichette QR",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#E9ECE8",
+  "theme_color": "#1F2B47",
+  "lang": "it",
+  "icons": [
+    {"src": "icona-180.png", "sizes": "180x180", "type": "image/png"},
+    {"src": "icona-512.png", "sizes": "512x512", "type": "image/png"}
+  ]
+}

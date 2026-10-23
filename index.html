@@ -1,0 +1,1261 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Gavone</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Gavone">
+<meta name="theme-color" content="#E9ECE8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0F1311" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="icona-180.png">
+<link rel="icon" href="icona-180.png">
+<link rel="manifest" href="manifest.webmanifest">
+<script src="qrcode.js"></script>
+<script src="jsQR.js"></script>
+<style>
+@font-face{font-family:"Big Shoulders Display";font-weight:600;font-display:swap;src:url(big-shoulders-display-600.woff2) format("woff2")}
+@font-face{font-family:"Big Shoulders Display";font-weight:800;font-display:swap;src:url(big-shoulders-display-800.woff2) format("woff2")}
+@font-face{font-family:"Atkinson Hyperlegible";font-weight:400;font-display:swap;src:url(atkinson-hyperlegible-400.woff2) format("woff2")}
+@font-face{font-family:"Atkinson Hyperlegible";font-weight:700;font-display:swap;src:url(atkinson-hyperlegible-700.woff2) format("woff2")}
+@font-face{font-family:"Atkinson Hyperlegible";font-weight:400;font-style:italic;font-display:swap;src:url(atkinson-hyperlegible-400-italic.woff2) format("woff2")}
+@font-face{font-family:"JetBrains Mono";font-weight:500;font-display:swap;src:url(jetbrains-mono-500.woff2) format("woff2")}
+@font-face{font-family:"JetBrains Mono";font-weight:700;font-display:swap;src:url(jetbrains-mono-700.woff2) format("woff2")}
+/* Layout: app da telefono a una colonna; barra in basso con il tasto Scansiona al centro;
+   i codici dei contenitori sono strisce di nastro goffrato (stile etichettatrice) */
+:root{
+  --bg:#E9ECE8; --surface:#F8F9F6; --line:#CDD3CD; --ink:#151B18; --muted:#5B6660;
+  --tape:#1F2B47; --tape-ink:#F4F6FB; --tag:#F0BE2C; --tag-ink:#231B00;
+  --ok:#2F7D4F; --warn:#B4541F; --focus:#2C5BD6;
+  --f-display:"Big Shoulders Display","Arial Narrow",Impact,sans-serif;
+  --f-body:"Atkinson Hyperlegible",-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0F1311; --surface:#181D1A; --line:#2A322D; --ink:#E6EBE7; --muted:#97A39C;
+  --tape:#30416B; --tape-ink:#F4F6FB; --tag:#F0BE2C; --tag-ink:#231B00;
+  --ok:#5CBF83; --warn:#E8915C; --focus:#7FA2FF; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0F1311; --surface:#181D1A; --line:#2A322D; --ink:#E6EBE7; --muted:#97A39C;
+  --tape:#30416B; --tape-ink:#F4F6FB; --tag:#F0BE2C; --tag-ink:#231B00;
+  --ok:#5CBF83; --warn:#E8915C; --focus:#7FA2FF; color-scheme:dark}
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+img{max-width:100%}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:16px;line-height:1.45;-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:30;background:var(--bg)}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.wrap{max-width:640px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 calc(96px + env(safe-area-inset-bottom,0px))}
+
+/* testata */
+.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--bg);padding-block:14px 10px;display:grid;gap:10px}
+.brand{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.brand h1{font-family:var(--f-display);font-weight:800;font-size:2rem;letter-spacing:.04em;text-transform:uppercase;margin:0;line-height:1}
+.brand h1 b{color:var(--tag);-webkit-text-stroke:0}
+.brand .count{font-family:var(--f-mono);font-size:.78rem;color:var(--muted);font-variant-numeric:tabular-nums;text-align:right}
+.chips{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;border:1.5px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 12px;font-size:.9rem;cursor:pointer;white-space:nowrap}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.chip.add{border-style:dashed;color:var(--muted)}
+
+/* nastro */
+.tape{display:inline-flex;align-items:center;font-family:var(--f-display);font-weight:800;letter-spacing:.14em;text-transform:uppercase;background:var(--tape);color:var(--tape-ink);padding:.18em .55em .12em;border-radius:3px;line-height:1.1;box-shadow:inset 0 1px 0 rgb(255 255 255 / .14),inset 0 -2px 0 rgb(0 0 0 / .28);text-shadow:0 -1px 0 rgb(0 0 0 / .45);white-space:nowrap}
+.tape.big{font-size:2.4rem;padding:.12em .45em .06em}
+
+/* viste */
+.view{display:grid;grid-template-columns:minmax(0,1fr);gap:18px;padding-top:6px}
+#res{grid-template-columns:minmax(0,1fr)}
+.top{grid-template-columns:minmax(0,1fr)}
+.search{display:flex;gap:8px;align-items:stretch}
+.search input{flex:1;min-width:0;border:2px solid var(--ink);background:var(--surface);border-radius:var(--r);padding:12px 14px;font-size:1.05rem}
+.btn{border:0;border-radius:var(--r);padding:12px 16px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;min-height:46px}
+.btn.primary{background:var(--tag);color:var(--tag-ink)}
+.btn.dark{background:var(--ink);color:var(--bg)}
+.btn.ghost{background:transparent;border:1.5px solid var(--line);color:var(--ink)}
+.btn.danger{background:transparent;border:1.5px solid var(--warn);color:var(--warn)}
+.btn:disabled{opacity:.5;cursor:default}
+.btn svg{width:20px;height:20px;flex:none}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.row>.btn{flex:1 1 140px}
+
+.answer{background:var(--surface);border-left:5px solid var(--tag);border-radius:0 var(--r) var(--r) 0;padding:14px 16px;display:grid;gap:8px}
+.answer .who{font-family:var(--f-mono);font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.answer p{margin:0;font-size:1.08rem}
+.label{font-family:var(--f-mono);font-size:.74rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:0}
+.sec{display:grid;gap:8px}
+.sec>h2{font-family:var(--f-display);font-weight:600;font-size:1.25rem;letter-spacing:.06em;text-transform:uppercase;margin:0;display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.sec>h2 small{font-family:var(--f-mono);font-size:.72rem;color:var(--muted);letter-spacing:.04em;font-weight:500}
+
+.list{display:grid;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.item{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:12px;align-items:center;background:var(--surface);padding:10px 12px;cursor:pointer;text-align:left;border:0;width:100%}
+.item.hl{box-shadow:inset 5px 0 0 var(--tag)}
+.thumb{width:52px;height:52px;border-radius:7px;background:var(--bg) center/cover no-repeat;border:1px solid var(--line);display:grid;place-items:center;color:var(--muted);font-family:var(--f-display);font-weight:800;font-size:1.2rem}
+.item .t{min-width:0}
+.item .n{font-weight:700;overflow-wrap:anywhere}
+.item .d{font-size:.86rem;color:var(--muted);overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.item .where{display:flex;gap:6px;align-items:center;margin-top:4px;font-size:.84rem;color:var(--muted);flex-wrap:wrap}
+.item .where .tape{font-size:.82rem}
+.qty{font-family:var(--f-mono);font-variant-numeric:tabular-nums;font-weight:700;color:var(--muted)}
+.stepper{display:flex;align-items:center;gap:2px}
+.stepper button{width:34px;height:34px;border-radius:8px;border:1.5px solid var(--line);background:var(--bg);font-weight:700;font-size:1.1rem;cursor:pointer}
+.stepper span{min-width:30px;text-align:center;font-family:var(--f-mono);font-weight:700;font-variant-numeric:tabular-nums}
+
+.box{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;background:var(--surface);padding:12px;border:0;width:100%;text-align:left;cursor:pointer}
+.box .tape{font-size:1.05rem}
+.box .n{font-weight:700;overflow-wrap:anywhere}
+.box .d{font-size:.84rem;color:var(--muted)}
+.minis{display:flex}
+.minis i{width:28px;height:28px;border-radius:6px;border:2px solid var(--surface);margin-left:-8px;background:var(--bg) center/cover;display:block}
+
+.head{display:grid;gap:10px;padding:18px 16px;background:var(--surface);border-radius:var(--r);border:1px solid var(--line)}
+.head h2{margin:0;font-size:1.5rem;line-height:1.2;text-wrap:balance}
+.head .meta{color:var(--muted);font-size:.95rem}
+.back{background:none;border:0;padding:4px 0;color:var(--muted);cursor:pointer;font-weight:700;justify-self:start}
+
+.empty{background:var(--surface);border:1.5px dashed var(--line);border-radius:var(--r);padding:20px 18px;display:grid;gap:14px}
+.empty h2{margin:0;font-size:1.25rem;text-wrap:balance}
+.steps{margin:0;padding:0;list-style:none;display:grid;gap:12px;counter-reset:s}
+.steps li{display:grid;grid-template-columns:34px 1fr;gap:10px;align-items:start;counter-increment:s}
+.steps li::before{content:counter(s);font-family:var(--f-display);font-weight:800;font-size:1.3rem;background:var(--tag);color:var(--tag-ink);border-radius:6px;text-align:center;line-height:34px}
+.muted{color:var(--muted)}
+.note{font-size:.9rem;color:var(--muted);margin:0}
+
+/* barra in basso */
+.nav{position:fixed;left:0;right:0;bottom:0;z-index:25;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px);padding-left:env(safe-area-inset-left,0px);padding-right:env(safe-area-inset-right,0px)}
+.nav .in{max-width:640px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr 1.2fr 1fr 1fr;align-items:end}
+.nav button{background:none;border:0;padding:8px 2px 10px;display:grid;justify-items:center;gap:2px;font-size:.72rem;color:var(--muted);cursor:pointer}
+.nav button svg{width:24px;height:24px}
+.nav button[aria-current="page"]{color:var(--ink);font-weight:700}
+.nav .scan{transform:translateY(-14px)}
+.nav .scan span.ring{width:62px;height:62px;border-radius:50%;background:var(--tag);color:var(--tag-ink);display:grid;place-items:center;box-shadow:0 4px 0 rgb(0 0 0 / .18);border:4px solid var(--surface)}
+.nav .scan span.ring svg{width:30px;height:30px}
+.nav .scan{color:var(--ink);font-weight:700}
+
+/* foglio */
+.sheet-bg{position:fixed;inset:0;z-index:40;background:rgb(0 0 0 / .45);display:flex;align-items:flex-end;justify-content:center}
+.sheet{background:var(--bg);width:100%;max-width:640px;max-height:92%;overflow:auto;border-radius:16px 16px 0 0;padding-block:18px calc(22px + env(safe-area-inset-bottom,0px));padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;gap:14px;align-content:start}
+.sheet h3{margin:0;font-family:var(--f-display);font-weight:800;font-size:1.5rem;letter-spacing:.05em;text-transform:uppercase}
+.field{display:grid;gap:4px}
+.field label{font-size:.85rem;font-weight:700}
+.field input,.field select,.field textarea{border:1.5px solid var(--line);background:var(--surface);border-radius:8px;padding:10px 12px;width:100%;min-width:0}
+.field textarea{min-height:70px;resize:vertical}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.pick{display:block;position:relative;overflow:hidden}
+.pick input{position:absolute;inset:0;opacity:0;cursor:pointer;font-size:0}
+
+.rev{display:grid;grid-template-columns:auto 64px minmax(0,1fr);gap:10px;align-items:start;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:10px}
+.rev input[type=checkbox]{width:22px;height:22px;margin-top:6px;accent-color:var(--ink)}
+.rev .thumb{width:64px;height:64px}
+.rev .f{display:grid;gap:6px;min-width:0}
+.rev .f input{border:1.5px solid var(--line);background:var(--bg);border-radius:6px;padding:7px 9px;width:100%;min-width:0}
+.rev .f .nm{font-weight:700}
+.rev .f .q{display:grid;grid-template-columns:1fr 70px;gap:6px}
+.rev.off{opacity:.45}
+.thinking{display:flex;gap:10px;align-items:center;color:var(--muted)}
+.dots{display:inline-flex;gap:4px}
+.dots i{width:7px;height:7px;border-radius:50%;background:var(--tag);animation:b 1s infinite ease-in-out}
+.dots i:nth-child(2){animation-delay:.15s}.dots i:nth-child(3){animation-delay:.3s}
+@keyframes b{0%,80%,100%{transform:scale(.5);opacity:.4}40%{transform:scale(1);opacity:1}}
+@media (prefers-reduced-motion:reduce){.dots i{animation:none}}
+.photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(84px,1fr));gap:6px}
+.photos div{aspect-ratio:1;max-width:100%;border-radius:8px;background:var(--surface) center/cover;border:1px solid var(--line)}
+.checkrow{display:flex;align-items:center;gap:10px;background:var(--surface);padding:10px 12px;cursor:pointer}
+.checkrow input{width:22px;height:22px;accent-color:var(--ink)}
+.checkrow .tape{font-size:.9rem}
+.checkrow .n{min-width:0;overflow-wrap:anywhere}
+
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(92px + env(safe-area-inset-bottom,0px));z-index:60;background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;font-weight:700;font-size:.92rem;max-width:calc(100% - 32px);text-align:center}
+.banner{background:var(--surface);border:1.5px solid var(--warn);border-radius:var(--r);padding:12px 14px;font-size:.92rem}
+.gal{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.shot{border:0;padding:0;background:var(--surface);border-radius:var(--r);overflow:hidden;cursor:pointer;display:grid;text-align:left;border:1px solid var(--line)}
+.shot span{display:block;aspect-ratio:1;max-width:100%;background:var(--bg) center/cover no-repeat}
+.shot em{font-style:normal;font-size:.8rem;display:flex;gap:6px;align-items:center;padding:8px 10px;color:var(--ink);background:color-mix(in srgb,var(--tape) 12%,var(--surface))}
+.shot em svg{width:15px;height:15px;flex:none}
+.usage{display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px 12px;flex-wrap:wrap}
+.usage span{font-size:.9rem}
+.cta{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;cursor:pointer;text-align:left;width:100%}
+.cta b{display:block;font-family:var(--f-display);font-weight:800;font-size:1.25rem;letter-spacing:.05em;text-transform:uppercase}
+.cta span{font-size:.9rem;color:var(--muted)}
+.cta .arrow{font-size:1.6rem;color:var(--muted)}
+.selrow{display:grid;grid-template-columns:auto 44px minmax(0,1fr);gap:10px;align-items:center;background:var(--surface);padding:10px 12px;cursor:pointer}
+.selrow input{width:22px;height:22px;accent-color:var(--ink)}
+.selrow .thumb{width:44px;height:44px;font-size:1rem}
+.selrow .n{font-weight:700;overflow-wrap:anywhere}
+.selrow .d{font-size:.82rem;color:var(--muted);display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.selrow .d .tape{font-size:.75rem}
+.ad{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:grid;gap:10px}
+.ad .top2{display:grid;grid-template-columns:56px minmax(0,1fr);gap:12px;align-items:center}
+.ad .top2 .thumb{width:56px;height:56px}
+.ad h4{margin:0;font-size:1.05rem;line-height:1.25;overflow-wrap:anywhere}
+.ad .facts{display:flex;gap:6px;flex-wrap:wrap}
+.ad .facts span{font-size:.8rem;border:1px solid var(--line);border-radius:999px;padding:2px 9px;background:var(--bg)}
+.ad .facts .price{background:var(--tag);color:var(--tag-ink);border-color:var(--tag);font-weight:700}
+.ad p{margin:0;white-space:pre-wrap;-webkit-user-select:text;user-select:text}
+.cam{position:relative;border-radius:var(--r);overflow:hidden;background:#000;aspect-ratio:1;max-width:100%}
+.cam video{width:100%;height:100%;object-fit:cover;display:block}
+.cam .mirino{position:absolute;inset:16%;border:3px solid var(--tag);border-radius:14px;box-shadow:0 0 0 999px rgb(0 0 0 / .35)}
+.stato{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:.9rem}
+.pill{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:3px 10px;font-weight:700;font-size:.8rem;border:1.5px solid var(--line);background:var(--surface)}
+.pill.ok{border-color:var(--ok);color:var(--ok)}
+.pill.no{border-color:var(--warn);color:var(--warn)}
+#printRoot{display:none}
+body.printing #printRoot{display:block;position:fixed;inset:0;z-index:70;overflow:auto;background:#d9ddd8;color:#000}
+body.printing>.wrap,body.printing>.nav,body.printing #sheetRoot{display:none}
+.printbar{position:sticky;top:0;display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:calc(10px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 10px max(16px,env(safe-area-inset-left,0px));background:#151B18;color:#fff}
+.printbar b{flex:1 1 160px;font-family:var(--f-body)}
+.printbar .btn{min-height:40px;padding:8px 14px}
+.printbar .btn.ghost{color:#fff;border-color:#5B6660}
+.lb-carta{overflow-x:auto;padding:16px}
+.lb-g{width:210mm;min-height:297mm;margin:0 auto;background:#fff;display:grid;grid-template-columns:repeat(3,70mm);grid-auto-rows:37.125mm;box-shadow:0 2px 12px rgb(0 0 0 / .2);font-family:"Arial Narrow",Arial,sans-serif}
+.lb-l{display:grid;grid-template-columns:29mm 1fr;align-items:center;gap:2mm;padding:3mm;overflow:hidden;outline:.1mm dashed #ccc}
+.lb-q svg{width:29mm;height:29mm;display:block}
+.lb-t{display:grid;gap:1mm;min-width:0}
+.lb-t b{font-size:7mm;letter-spacing:.6mm;line-height:1;background:#000;color:#fff;padding:1mm 1.5mm;justify-self:start}
+.lb-n{font-size:3.6mm;font-weight:700;line-height:1.15;overflow-wrap:anywhere}
+.lb-p{font-size:2.8mm;line-height:1.15}
+@media print{
+  @page{size:A4;margin:0}
+  body.printing{background:#fff}
+  body.printing #printRoot{position:static;overflow:visible;background:#fff}
+  .printbar{display:none}
+  .lb-carta{padding:0;overflow:visible}
+  .lb-g{box-shadow:none;margin:0}
+  .lb-l{outline:none}
+}
+.big-photo{width:100%;max-width:100%;border-radius:var(--r);border:1px solid var(--line);display:block}
+.qrprev{display:grid;grid-template-columns:120px minmax(0,1fr);gap:14px;align-items:center;background:#fff;color:#111;border-radius:var(--r);padding:12px;border:1px solid var(--line)}
+.qrprev svg{width:120px;height:120px;display:block}
+.qrprev b{font-family:var(--f-display);font-size:2rem;letter-spacing:.1em;display:block;line-height:1}
+.qrprev span{font-size:.9rem;display:block;overflow-wrap:anywhere}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <h1>Gavone<b>.</b></h1>
+      <div class="count" id="count">collegamento…</div>
+    </div>
+    <div class="chips" id="chips" role="toolbar" aria-label="Luogo"></div>
+  </header>
+  <div id="banner"></div>
+  <main id="main"></main>
+</div>
+
+<nav class="nav" aria-label="Sezioni">
+  <div class="in">
+    <button data-go="cerca" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>Cerca</button>
+    <button data-go="scatole"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M3 7.5 12 3l9 4.5v9L12 21l-9-4.5z"/><path d="M3 7.5 12 12l9-4.5M12 12v9"/></svg>Contenitori</button>
+    <button data-go="scan" class="scan"><span class="ring"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><path d="M7 12h10"/></svg></span>Scansiona</button>
+    <button data-go="nuovo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M12 8v8M8 12h8"/></svg>Nuovo</button>
+    <button data-go="etichette"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>Altro</button>
+  </div>
+</nav>
+
+<div id="sheetRoot"></div>
+<div id="printRoot"></div>
+<div id="toastRoot"></div>
+
+<script>
+"use strict";
+/* Indirizzo che finisce nei QR (seguito da #CODICE): arriva dal server. Vuoto = QR con solo il codice */
+let QR_BASE = "";
+
+const DEFAULT_AMBITI = [
+  {nome:"Camper", prefisso:"CMP"},
+  {nome:"Casa Sartor", prefisso:"SRT"},
+  {nome:"Casa Saponara", prefisso:"SPN"}
+];
+const POSIZIONI = {
+  "Camper":["Gavone posteriore","Garage","Pensili cucina","Sotto la dinette","Armadio","Pensili zona notte","Sotto il letto","Bagno","Cruscotto"],
+  "Casa Sartor":["Garage","Cantina","Ripostiglio","Armadio camera","Soffitta","Cucina"],
+  "Casa Saponara":["Garage","Ripostiglio","Armadio","Cantina"]
+};
+const CATEGORIE = ["Attrezzi","Elettronica e cavi","Cucina","Pulizia","Abbigliamento","Biancheria","Bagno e igiene","Farmaci e primo soccorso","Documenti","Campeggio e outdoor","Ricambi e manutenzione","Tempo libero","Dispensa","Sicurezza","Varie"];
+
+const S = {
+  db:null, assets:null, sample:null, dl:null, imgLimits:null,
+  cont:{}, ogg:{}, ambiti:DEFAULT_AMBITI.slice(), ambito:"Camper",
+  view:"cerca", current:null, highlight:null, q:"", answer:null, asking:null,
+  loaded:{c:false,o:false}, connected:false, offline:false, soglia:0, sel:new Set(), adsBusy:false, readOnly:false, pendingHash:null
+};
+
+/* ---------- utilita' ---------- */
+const $ = (s, el=document) => el.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const norm = s => String(s ?? "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"");
+const now = () => new Date().toISOString();
+const FOTOURL = {};
+const photoUrl = id => (id && FOTOURL[id]) || "";
+function toast(msg){ const r=$("#toastRoot"); r.innerHTML=`<div class="toast" role="status">${esc(msg)}</div>`; clearTimeout(toast.t); toast.t=setTimeout(()=>r.innerHTML="",2600); }
+function ambitoOf(name){ return S.ambiti.find(a=>a.nome===name) || {nome:name, prefisso:"ALT"}; }
+function contList(amb){ return Object.values(S.cont).filter(c=>!amb || c.ambito===amb).sort((a,b)=>String(a.codice).localeCompare(String(b.codice),"it",{numeric:true})); }
+function itemsIn(cid){ return Object.values(S.ogg).filter(o=>o.contenitore===cid).sort((a,b)=>String(a.nome).localeCompare(String(b.nome),"it")); }
+function byCode(code){ const c=norm(code).trim(); return Object.values(S.cont).find(x=>norm(x.codice)===c); }
+function nextCode(amb){
+  const p = ambitoOf(amb).prefisso;
+  let max = 0;
+  for (const c of Object.values(S.cont)) { const m = String(c.codice||"").match(new RegExp("^"+p+"-(\\d+)$")); if (m) max = Math.max(max, +m[1]); }
+  return p + "-" + String(max+1).padStart(2,"0");
+}
+function qrText(code){ return QR_BASE ? QR_BASE + "/#" + code : "GAVONE:" + code; }
+function codeFromScan(txt){
+  txt = String(txt||"").trim();
+  let m = txt.match(/#([A-Za-z0-9._~-]+)\s*$/) || txt.match(/^GAVONE:(.+)$/i);
+  return m ? m[1] : txt;
+}
+function dbErr(e){
+  if (e && e.code==="invalid_argument" && !S.readOnly){ S.readOnly=true; renderBanner(); toast("Hai accesso in sola lettura"); return; }
+  if (e && e.code==="quota_exceeded") { toast("Spazio del catalogo esaurito: elimina qualcosa"); return; }
+  toast("Salvataggio non riuscito, riprova"); console.warn(e);
+}
+
+/* ---------- QR ---------- */
+function qrMatrix(text){
+  const q = qrcode(0,"M"); q.addData(text); q.make();
+  const n=q.getModuleCount(), m=[];
+  for (let r=0;r<n;r++){ m.push([]); for (let c=0;c<n;c++) m[r].push(q.isDark(r,c)); }
+  return m;
+}
+function qrSvg(text){
+  if (typeof qrcode!=="function") return "";
+  const m=qrMatrix(text), n=m.length, pad=2; let d="";
+  for (let r=0;r<n;r++) for (let c=0;c<n;c++) if (m[r][c]) d+=`M${c+pad} ${r+pad}h1v1h-1z`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${n+pad*2} ${n+pad*2}" shape-rendering="crispEdges"><rect width="100%" height="100%" fill="#fff"/><path d="${d}" fill="#000"/></svg>`;
+}
+
+/* ---------- immagini ---------- */
+function loadImage(file){
+  return new Promise((res,rej)=>{ const u=URL.createObjectURL(file); const i=new Image(); i.onload=()=>{res(i)}; i.onerror=rej; i.src=u; });
+}
+async function shrink(file, max=1600, q=.82){
+  const img = await loadImage(file);
+  const k = Math.min(1, max/Math.max(img.naturalWidth, img.naturalHeight));
+  const cv = document.createElement("canvas"); cv.width=Math.round(img.naturalWidth*k); cv.height=Math.round(img.naturalHeight*k);
+  cv.getContext("2d").drawImage(img,0,0,cv.width,cv.height);
+  const blob = await new Promise(r=>cv.toBlob(r,"image/jpeg",q));
+  return {blob, url:URL.createObjectURL(blob), canvas:cv};
+}
+function decodeQR(canvas){
+  if (typeof jsQR!=="function") return null;
+  const tries=[1, 800/Math.max(canvas.width,canvas.height), 500/Math.max(canvas.width,canvas.height)];
+  for (const k0 of tries){
+    const k=Math.min(1,k0), w=Math.round(canvas.width*k), h=Math.round(canvas.height*k);
+    const cv=document.createElement("canvas"); cv.width=w; cv.height=h;
+    const ctx=cv.getContext("2d"); ctx.drawImage(canvas,0,0,w,h);
+    const r=jsQR(ctx.getImageData(0,0,w,h).data,w,h,{inversionAttempts:"attemptBoth"});
+    if (r && r.data) return r.data;
+  }
+  return null;
+}
+
+/* ---------- testata ---------- */
+function renderChips(){
+  const el=$("#chips");
+  el.innerHTML = S.ambiti.map(a=>`<button class="chip" aria-pressed="${a.nome===S.ambito}" data-amb="${esc(a.nome)}">${esc(a.nome)}</button>`).join("")
+    + `<button class="chip add" data-addamb>+ Luogo</button>`;
+}
+function renderCount(){
+  const c=contList(S.ambito), n=c.reduce((s,x)=>s+itemsIn(x.id).length,0);
+  $("#count").textContent = S.offline ? "non collegato" : !S.db ? "collegamento…" : `${n} oggetti\n${c.length} contenitori`;
+  $("#count").style.whiteSpace="pre";
+}
+function renderBanner(){
+  const b=$("#banner");
+  const n=Object.keys(S.ogg).length;
+  const giorni=S.ultimoBackup?(Date.now()-Date.parse(S.ultimoBackup))/864e5:Infinity;
+  if (S.noStorage) b.innerHTML=`<div class="banner">Qui non posso salvare dati, forse sei in navigazione privata. Apri Gavone da Safari normale o dall'icona sulla schermata Home.</div>`;
+  else if (S.loaded.o && n>=5 && giorni>14) b.innerHTML=`<div class="banner">${S.ultimoBackup?`L'ultimo backup è di ${Math.floor(giorni)} giorni fa.`:"Non hai ancora salvato un backup."} Catalogo e foto stanno solo in questo iPhone.<br><button class="btn ghost" data-go="etichette" style="min-height:36px;padding:6px 12px;margin-top:8px">Salva il backup</button></div>`;
+  else b.innerHTML="";
+}
+
+/* ---------- viste ---------- */
+function render(){
+  renderChips(); renderCount();
+  document.querySelectorAll(".nav button[data-go]").forEach(b=>b.setAttribute("aria-current", b.dataset.go===S.view || (S.view==="scatola" && b.dataset.go==="scatole") ? "page" : "false"));
+  const m=$("#main");
+  if (S.view==="cerca") renderCerca(m);
+  else if (S.view==="scatole") renderScatole(m);
+  else if (S.view==="scatola") renderScatola(m);
+  else if (S.view==="etichette") renderEtichette(m);
+  else if (S.view==="svuota") renderSvuota(m);
+}
+function go(v){ S.view=v; if (v!=="scatola") S.highlight=null; render(); window.scrollTo(0,0); }
+
+function itemRow(o, opts={}){
+  const c=S.cont[o.contenitore];
+  const th = o.fotoId ? `<span class="thumb" style="background-image:url('${photoUrl(o.fotoId)}')"></span>` : `<span class="thumb">${esc((o.nome||"?")[0].toUpperCase())}</span>`;
+  const right = opts.stepper
+    ? `<span class="stepper" data-stop><button data-qty="-1" data-id="${o.id}" aria-label="Uno in meno">−</button><span>${o.quantita??1}</span><button data-qty="1" data-id="${o.id}" aria-label="Uno in più">+</button></span>`
+    : `<span class="qty">×${o.quantita??1}</span>`;
+  const where = opts.where && c ? `<div class="where"><span class="tape">${esc(c.codice)}</span>${esc(c.nome)} · ${esc(c.ambito)}${c.posizione?" · "+esc(c.posizione):""}</div>` : "";
+  return `<div class="item ${S.highlight===o.id?"hl":""}" role="button" tabindex="0" data-item="${o.id}">${th}<div class="t"><div class="n">${esc(o.nome)}</div><div class="d">${esc([o.dettagli,o.marca].filter(Boolean).join(" · "))}</div>${where}</div>${right}</div>`;
+}
+
+function search(q){
+  const words=norm(q).split(/\s+/).filter(w=>w.length>1);
+  if (!words.length) return [];
+  const res=[];
+  for (const o of Object.values(S.ogg)){
+    const c=S.cont[o.contenitore]||{};
+    const hay=norm([o.nome,o.dettagli,o.marca,o.categoria,(o.parole||[]).join(" "),o.note,c.nome,c.codice,c.posizione].join(" "));
+    const nm=norm(o.nome);
+    let score=0, all=true;
+    for (const w of words){ const stem=w.length>4?w.slice(0,-1):w; if (hay.includes(stem)) score += nm.includes(stem)?3:1; else all=false; }
+    if (score>0) res.push({o, score: score + (all?5:0)});
+  }
+  return res.sort((a,b)=>b.score-a.score).slice(0,40).map(r=>r.o);
+}
+
+function renderCerca(m){
+  const total=Object.keys(S.ogg).length;
+  m.innerHTML = `<section class="view">
+    <form class="search" id="askForm" autocomplete="off">
+      <input id="q" type="search" placeholder="Dove ho messo…?" value="${esc(S.q)}" aria-label="Cosa cerchi">
+      <button class="btn primary" id="askBtn" type="submit" ${S.sample&&total?"":"hidden"}>Chiedi</button>
+    </form>
+    <div id="ans"></div>
+    <div id="res" style="display:grid;gap:18px"></div>
+  </section>`;
+  const q=$("#q");
+  q.addEventListener("input",()=>{ S.q=q.value; S.answer=null; renderAnswer(); renderResults(); });
+  $("#askForm").addEventListener("submit",e=>{ e.preventDefault(); if (S.sample) ask(); else renderResults(); });
+  renderAnswer(); renderResults();
+}
+function renderAnswer(){
+  const el=$("#ans"); if (!el) return;
+  if (S.asking) { el.innerHTML=`<div class="answer"><div class="who">Gavone sta cercando</div><div class="thinking"><span class="dots"><i></i><i></i><i></i></span> Controllo l'inventario…</div><button class="btn ghost" id="stopAsk" style="justify-self:start">Ferma</button></div>`; $("#stopAsk").onclick=()=>S.asking?.abort(); return; }
+  if (!S.answer) { el.innerHTML=""; return; }
+  const found=(S.answer.id||[]).map(id=>S.ogg[id]).filter(Boolean);
+  el.innerHTML=`<div class="answer"><div class="who">Risposta</div><p>${esc(S.answer.risposta||"")}</p>${found.length?`<div class="list">${found.map(o=>itemRow(o,{where:true})).join("")}</div>`:""}</div>`;
+}
+function renderResults(){
+  const el=$("#res"); if (!el) return;
+  const all=Object.values(S.ogg);
+  if (!S.loaded.c || !S.loaded.o) { el.innerHTML = S.connected && !S.db ? "" : `<p class="note">Apro il catalogo…</p>`; return; }
+  if (!Object.keys(S.cont).length){ el.innerHTML = emptyState(); bindEmpty(el); return; }
+  if (S.q.trim()){
+    const r=search(S.q);
+    el.innerHTML = r.length
+      ? `<div class="sec"><h2>Trovati <small>${r.length}</small></h2><div class="list">${r.map(o=>itemRow(o,{where:true})).join("")}</div></div>`
+      : `<p class="note">Nessun oggetto con queste parole.${S.sample?" Premi Chiedi: capisce anche sinonimi e descrizioni.":""}</p>`;
+    return;
+  }
+  const recent=all.slice().sort((a,b)=>String(b.creato).localeCompare(String(a.creato))).slice(0,8);
+  el.innerHTML = recent.length
+    ? `<div class="sec"><h2>Ultimi inseriti <small>${all.length} in tutto</small></h2><div class="list">${recent.map(o=>itemRow(o,{where:true})).join("")}</div></div>`
+    + svuotaCta()
+    : `<div class="empty"><h2>I contenitori ci sono, ora riempili</h2><p class="note">Apri un contenitore e fotografa quello che c'è dentro: gli oggetti vengono riconosciuti e messi in elenco da soli.</p><button class="btn dark" data-go2="scatole">Vai ai contenitori</button></div>`;
+  el.querySelector("[data-go2]")?.addEventListener("click",()=>go("scatole"));
+  el.querySelector("[data-svuota]")?.addEventListener("click",()=>go("svuota"));
+}
+function svuotaCta(){
+  const mai=Object.values(S.ogg).filter(o=>!o.usato).length;
+  return `<button class="cta" data-svuota><span><b>Svuota e vendi</b><span>${mai} oggett${mai===1?"o":"i"} mai segnat${mai===1?"o":"i"} come usat${mai===1?"o":"i"}. Scegli cosa togliere e ti scrivo l'annuncio.</span></span><span class="arrow">›</span></button>`;
+}
+function emptyState(){
+  return `<div class="empty">
+    <h2>Partiamo dal camper</h2>
+    <ol class="steps">
+      <li><div><b>Crea un contenitore</b><br><span class="muted">Una cassetta, un gavone, un cassetto. Riceve un codice tipo <span class="tape" style="font-size:.85rem">CMP-01</span>.</span></div></li>
+      <li><div><b>Stampa l'etichetta col QR</b><br><span class="muted">Foglio A4 adesivo o stampante termica. Si attacca fuori.</span></div></li>
+      <li><div><b>Fotografa cosa c'è dentro</b><br><span class="muted">Gli oggetti vengono riconosciuti e catalogati: tu confermi.</span></div></li>
+      <li><div><b>Chiedi dove sta una cosa</b><br><span class="muted">"Dov'è il cavo della corrente?" e ti dice contenitore e posizione.</span></div></li>
+    </ol>
+    <button class="btn primary" data-new>Crea il primo contenitore</button>
+    <button class="btn ghost" data-go="etichette">Ho già un backup: importalo</button>
+  </div>`;
+}
+function bindEmpty(el){ el.querySelector("[data-new]")?.addEventListener("click",()=>openContForm()); }
+
+function renderScatole(m){
+  const list=contList(S.ambito);
+  if (!S.loaded.c){ m.innerHTML=`<p class="note">Apro il catalogo…</p>`; return; }
+  if (!list.length){ m.innerHTML=`<section class="view">${emptyState()}</section>`; bindEmpty(m); return; }
+  const groups={};
+  for (const c of list){ (groups[c.posizione||"Senza posizione"] ||= []).push(c); }
+  m.innerHTML=`<section class="view">
+    ${Object.entries(groups).map(([pos,cs])=>`<div class="sec"><h2>${esc(pos)} <small>${cs.length}</small></h2><div class="list">${cs.map(c=>{
+      const it=itemsIn(c.id), ph=it.filter(o=>o.fotoId).slice(0,4);
+      return `<button class="box" data-open="${c.id}"><span class="tape">${esc(c.codice)}</span><span style="min-width:0"><span class="n">${esc(c.nome)}</span><br><span class="d">${it.length} oggett${it.length===1?"o":"i"}</span></span><span class="minis">${ph.map(o=>`<i style="background-image:url('${photoUrl(o.fotoId)}')"></i>`).join("")}</span></button>`;
+    }).join("")}</div></div>`).join("")}
+    <button class="btn dark" data-new>+ Nuovo contenitore in ${esc(S.ambito)}</button>
+  </section>`;
+  m.querySelector("[data-new]").onclick=()=>openContForm();
+}
+
+function renderScatola(m){
+  const c=S.cont[S.current];
+  if (!c){ if (S.loaded.c) go("scatole"); else m.innerHTML=`<p class="note">Apro il catalogo…</p>`; return; }
+  const items=itemsIn(c.id), pezzi=items.reduce((s,o)=>s+(+o.quantita||1),0);
+  const shots={}; for (const o of items) if (o.fotoId) (shots[o.fotoId] ||= []).push(o);
+  const shotList=Object.entries(shots);
+  m.innerHTML=`<section class="view">
+    <button class="back" data-back>‹ Contenitori</button>
+    <div class="head">
+      <div><span class="tape big">${esc(c.codice)}</span></div>
+      <h2>${esc(c.nome)}</h2>
+      <div class="meta">${esc(c.ambito)}${c.posizione?" · "+esc(c.posizione):""}</div>
+      ${c.note?`<p class="note">${esc(c.note)}</p>`:""}
+    </div>
+    <div class="row">
+      <label class="btn primary pick" ${S.readOnly?"hidden":""}><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Fotografa il contenuto<input type="file" id="ph" accept="image/*" multiple></label>
+      <button class="btn ghost" data-manual ${S.readOnly?"hidden":""}>Aggiungi a mano</button>
+    </div>
+    ${shotList.length?`<div class="sec"><h2>Foto <small>${shotList.length}</small></h2><div class="gal">${shotList.map(([fid,os])=>`<button class="shot" data-shot="${esc(fid)}" aria-label="Oggetti in questa foto"><span style="background-image:url('${photoUrl(fid)}')"></span><em><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>${os.length} oggett${os.length===1?"o rilevato":"i rilevati"} nell'immagine</em></button>`).join("")}</div></div>`:""}
+    <div class="sec">
+      <h2>Dentro <small>${items.length} voci · ${pezzi} pezzi</small></h2>
+      ${items.length?`<div class="list">${items.map(o=>itemRow(o,{stepper:!S.readOnly})).join("")}</div>`:`<p class="note">Ancora vuoto. Apri il contenitore e scatta una o più foto di quello che contiene, anche con tanti oggetti insieme.</p>`}
+    </div>
+    <div class="row">
+      <button class="btn ghost" data-label>Etichetta</button>
+      <button class="btn ghost" data-edit ${S.readOnly?"hidden":""}>Modifica</button>
+    </div>
+  </section>`;
+  m.querySelector("[data-back]").onclick=()=>go("scatole");
+  m.querySelector("[data-manual]").onclick=()=>openItemForm(null,c.id);
+  m.querySelector("[data-label]").onclick=()=>openLabel(c);
+  m.querySelector("[data-edit]").onclick=()=>openContForm(c);
+  $("#ph").addEventListener("change",e=>{ const f=[...e.target.files]; e.target.value=""; if (f.length) analyzePhotos(c,f); });
+  if (S.highlight){ const el=m.querySelector(`[data-item="${S.highlight}"]`); el?.scrollIntoView({block:"center"}); }
+}
+
+function renderEtichette(m){
+  const list=contList(S.ambito);
+  const standalone=window.matchMedia?.("(display-mode: standalone)")?.matches || navigator.standalone===true;
+  const opt=(v,cur)=>[["claude-haiku-5-5","Haiku (economico)"],["claude-sonnet-5-5","Sonnet (consigliato)"],["claude-opus-5-5","Opus (il più preciso)"]].map(([k,t])=>`<option value="${k}" ${k===cur?"selected":""}>${t}</option>`).join("");
+  m.innerHTML=`<section class="view">
+    ${standalone?"":`<div class="sec"><h2>Metti Gavone sulla schermata Home</h2><p class="note">In Safari tocca <b>Condividi</b> → <b>Aggiungi alla schermata Home</b>. Poi aprila sempre dall'icona: è lì che restano i tuoi dati.</p></div>`}
+    <div class="sec">
+      <h2>Copia di sicurezza</h2>
+      <p class="note">Catalogo e foto stanno solo in questo iPhone. Se cancelli l'icona o cambi telefono si perdono: salva il backup ogni tanto in iCloud Drive (Condividi → Salva su File).</p>
+      <div class="stato"><span class="pill ${S.ultimoBackup?"ok":"no"}">${S.ultimoBackup?"Ultimo backup "+fmtDate(S.ultimoBackup):"Nessun backup"}</span><span class="pill" id="spazio">Spazio…</span></div>
+      <div class="row"><button class="btn primary" id="bkOut">Salva il backup</button><label class="btn ghost pick">Importa un backup<input type="file" id="bkIn" accept=".json,application/json"></label></div>
+      <button class="btn ghost" id="csvOut">Elenco in CSV per il foglio di calcolo</button>
+    </div>
+    <div class="sec">
+      <h2>Riconoscimento foto</h2>
+      <div class="stato"><span class="pill ${CFG.apiKey?"ok":"no"}">${CFG.apiKey?"Attivo":"Spento"}</span><span class="note">${CFG.apiKey?"Le foto vengono riconosciute con la tua chiave, a consumo.":"Senza chiave scrivi tu i nomi; ricerca, etichette e QR funzionano lo stesso."}</span></div>
+      <div class="field"><label for="apik">Chiave API di Anthropic</label><input id="apik" type="password" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="sk-ant-…" value="${esc(CFG.apiKey)}"></div>
+      <div class="two">
+        <div class="field"><label for="mfoto">Per foto e annunci</label><select id="mfoto">${opt(0,CFG.modelloFoto)}</select></div>
+        <div class="field"><label for="mtesto">Per le domande</label><select id="mtesto">${opt(0,CFG.modelloTesto)}</select></div>
+      </div>
+      <div class="row"><button class="btn dark" id="kSave">Salva</button><button class="btn ghost" id="kTest">Prova la chiave</button></div>
+      <p class="note">La chiave resta solo in questo iPhone. Si crea su console.anthropic.com → API Keys. Le foto partono verso Anthropic solo quando tocchi "Fotografa il contenuto".</p>
+    </div>
+    <div class="sec">
+      <h2>Etichette ${esc(S.ambito)} <small>${list.length}</small></h2>
+      <p class="note">Foglio A4 da 24 etichette adesive 70×37 mm (3 colonne × 8 righe).</p>
+      ${list.length?`<div class="list" id="lab">${list.map(c=>`<label class="checkrow"><input type="checkbox" value="${c.id}" checked><span class="tape">${esc(c.codice)}</span><span class="n">${esc(c.nome)}</span></label>`).join("")}</div>
+      <button class="btn primary" id="dlSheet">Prepara il foglio A4</button>`:`<p class="note">Nessun contenitore in ${esc(S.ambito)}.</p>`}
+    </div>
+  </section>`;
+  $("#dlSheet")?.addEventListener("click",()=>{ const ids=[...document.querySelectorAll("#lab input:checked")].map(i=>i.value); if (!ids.length) return toast("Seleziona almeno un contenitore"); openSheetPage(ids); });
+  $("#bkOut").onclick=e=>esportaBackup(e.currentTarget);
+  $("#bkIn").addEventListener("change",e=>{ const f=e.target.files[0]; e.target.value=""; if (f) importaBackup(f); });
+  $("#csvOut").onclick=()=>{
+    const q=v=>`"${String(v??"").replace(/"/g,'""')}"`;
+    const rows=[["Oggetto","Quantità","Categoria","Dettagli","Marca","Codice","Contenitore","Luogo","Posizione","Ultimo uso"].map(q).join(";")];
+    for (const o of Object.values(S.ogg)){ const c=S.cont[o.contenitore]||{}; rows.push([o.nome,o.quantita,o.categoria,o.dettagli,o.marca,c.codice,c.nome,c.ambito,c.posizione,(o.usato||"").slice(0,10)].map(q).join(";")); }
+    saveFile(`gavone-${new Date().toISOString().slice(0,10)}.csv`, "\ufeff"+rows.join("\n"),"text/csv");
+  };
+  $("#kSave").onclick=async()=>{
+    CFG.apiKey=$("#apik").value.trim(); CFG.modelloFoto=$("#mfoto").value; CFG.modelloTesto=$("#mtesto").value;
+    await idbPut("meta","impostazioni",{...CFG}); S.sample=CFG.apiKey?true:null; toast("Impostazioni salvate"); render();
+  };
+  $("#kTest").onclick=async e=>{
+    const k=$("#apik").value.trim(); if (!k) return toast("Incolla prima la chiave");
+    const b=e.currentTarget; b.disabled=true; b.textContent="Provo…";
+    const old=CFG.apiKey; CFG.apiKey=k;
+    try{ await chiediClaude($("#mtesto").value,"Rispondi solo con la parola: ok",10); toast("La chiave funziona"); }
+    catch(err){ toast(err.message); }
+    finally{ CFG.apiKey=old; b.disabled=false; b.textContent="Prova la chiave"; }
+  };
+  (async()=>{ try{ const e=await navigator.storage?.estimate?.(); if (e) $("#spazio").textContent=`${(e.usage/1048576).toFixed(1)} MB usati${S.persistito?" · protetti":""}`; else $("#spazio").remove(); }catch{ $("#spazio")?.remove(); } })();
+}
+function openSheetPage(ids){
+  const conts=ids.map(id=>S.cont[id]).filter(Boolean).sort((a,b)=>String(a.codice).localeCompare(String(b.codice),"it",{numeric:true}));
+  const cells=conts.map(c=>`<div class="lb-l"><div class="lb-q">${qrSvg(qrText(c.codice))}</div><div class="lb-t"><b>${esc(c.codice)}</b><span class="lb-n">${esc(c.nome)}</span><span class="lb-p">${esc(c.ambito)}${c.posizione?" · "+esc(c.posizione):""}</span></div></div>`).join("");
+  const r=$("#printRoot");
+  r.innerHTML=`<div class="printbar"><b>${conts.length} etichett${conts.length===1?"a":"e"} · A4 70×37 mm</b><button class="btn primary" id="pStampa">Stampa</button><button class="btn ghost" id="pFile">Condividi file</button><button class="btn ghost" id="pChiudi">Chiudi</button></div><div class="lb-carta"><div class="lb-g">${cells}</div></div>`;
+  document.body.classList.add("printing"); r.scrollTop=0;
+  $("#pStampa").onclick=()=>{ try{ window.print(); }catch{ toast("Stampa non disponibile qui: usa Condividi file"); } };
+  $("#pFile").onclick=()=>saveFile(`etichette-${new Date().toISOString().slice(0,10)}.html`, sheetHtml(conts), "text/html");
+  $("#pChiudi").onclick=()=>{ document.body.classList.remove("printing"); r.innerHTML=""; };
+}
+
+async function saveFile(filename, data, type){
+  const blob = data instanceof Blob ? data : new Blob([data],{type});
+  try{
+    const file = new File([blob], filename, {type: blob.type||type});
+    if (navigator.canShare?.({files:[file]})){ await navigator.share({files:[file]}); return true; }
+  }catch(e){ if (e?.name==="AbortError") return false; }
+  const a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=filename;
+  document.body.append(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); }, 4000);
+  return true;
+}
+
+/* ---------- galleria ---------- */
+function openShot(fid){
+  const os=Object.values(S.ogg).filter(o=>o.fotoId===fid).sort((a,b)=>String(a.nome).localeCompare(String(b.nome),"it"));
+  sheet(`<h3>${os.length} oggett${os.length===1?"o":"i"} in questa foto</h3>
+    <img class="big-photo" src="${photoUrl(fid)}" alt="Foto del contenuto">
+    <div class="list">${os.map(o=>itemRow(o)).join("")}</div>
+    <button class="btn ghost" data-close>Chiudi</button>`);
+}
+
+/* ---------- svuota e vendi ---------- */
+function fmtDate(iso){ try{ return new Date(iso).toLocaleDateString("it-IT",{day:"numeric",month:"short",year:"numeric"}); }catch{ return ""; } }
+const SOGLIE=[{v:0,t:"Mai usati"},{v:182,t:"Non usati da 6 mesi"},{v:365,t:"Da 1 anno"},{v:730,t:"Da 2 anni"}];
+function staleItems(){
+  const lim=Date.now()-S.soglia*864e5;
+  return Object.values(S.ogg).filter(o=>{
+    const c=S.cont[o.contenitore]; if (!c || c.ambito!==S.ambito) return false;
+    if (S.soglia===0) return !o.usato;
+    const last=o.usato||o.creato; return last && Date.parse(last)<lim;
+  }).sort((a,b)=>String(a.usato||a.creato).localeCompare(String(b.usato||b.creato)));
+}
+function renderSvuota(m){
+  const list=staleItems();
+  for (const id of [...S.sel]) if (!list.some(o=>o.id===id)) S.sel.delete(id);
+  const withAd=list.filter(o=>o.annuncio);
+  m.innerHTML=`<section class="view">
+    <button class="back" data-back>‹ Cerca</button>
+    <div class="sec">
+      <h2>Svuota e vendi · ${esc(S.ambito)} <small>${list.length}</small></h2>
+      <p class="note">Quando usi una cosa, aprila e tocca <b>L'ho usato oggi</b>. Qui restano quelle che non tocchi da tempo: scegli cosa togliere e l'annuncio te lo scrivo io.</p>
+      <div class="chips">${SOGLIE.map(x=>`<button class="chip" aria-pressed="${x.v===S.soglia}" data-soglia="${x.v}">${x.t}</button>`).join("")}</div>
+    </div>
+    ${list.length?`<div class="list" id="selList">${list.map(o=>{ const c=S.cont[o.contenitore]||{};
+      const th=o.fotoId?`<span class="thumb" style="background-image:url('${photoUrl(o.fotoId)}')"></span>`:`<span class="thumb">${esc((o.nome||"?")[0].toUpperCase())}</span>`;
+      return `<label class="selrow"><input type="checkbox" value="${o.id}" ${S.sel.has(o.id)?"checked":""}>${th}<span style="min-width:0"><span class="n">${esc(o.nome)}${o.quantita>1?` ×${o.quantita}`:""}</span><span class="d"><span class="tape">${esc(c.codice)}</span>${o.usato?"ultimo uso "+fmtDate(o.usato):"mai usato · in catalogo dal "+fmtDate(o.creato)}${o.annuncio?" · annuncio pronto":""}</span></span></label>`; }).join("")}</div>
+      <button class="btn primary" id="mkAds" ${S.sample&&S.sel.size&&!S.adsBusy?"":"disabled"}>${S.adsBusy?"Scrivo gli annunci…":S.sel.size?`Scrivi l'annuncio per ${S.sel.size}`:"Seleziona cosa vendere"}</button>
+      ${S.sample?"":`<p class="note">Per gli annunci automatici serve la chiave API di Anthropic nelle impostazioni di Gavone.</p>`}`
+    :`<div class="empty"><h2>Niente da svuotare qui</h2><p class="note">${S.soglia===0?"Tutti gli oggetti di "+esc(S.ambito)+" risultano usati almeno una volta.":"Nessun oggetto fermo da così tanto tempo. Il conto parte dal giorno in cui l'hai catalogato o dall'ultimo uso segnato."}</p></div>`}
+    <div id="ads" style="display:grid;gap:10px">${S.adsBusy?`<div class="thinking"><span class="dots"><i></i><i></i><i></i></span> Guardo le foto e scrivo gli annunci…</div>`:""}${withAd.length?`<div class="sec"><h2>Annunci pronti <small>${withAd.length}</small></h2></div>`+withAd.map(adCard).join(""):""}</div>
+  </section>`;
+  m.querySelector("[data-back]").onclick=()=>go("cerca");
+  m.querySelectorAll("#selList input").forEach(cb=>cb.addEventListener("change",()=>{ cb.checked?S.sel.add(cb.value):S.sel.delete(cb.value); const b=$("#mkAds"); b.disabled=!(S.sample&&S.sel.size)||S.adsBusy; b.textContent=S.sel.size?`Scrivi l'annuncio per ${S.sel.size}`:"Seleziona cosa vendere"; }));
+  $("#mkAds")?.addEventListener("click",makeAds);
+  m.querySelectorAll("[data-copy]").forEach(b=>b.onclick=()=>copyAd(b));
+  m.querySelectorAll("[data-sold]").forEach(b=>b.onclick=()=>soldItem(b));
+}
+function adCard(o){
+  const a=o.annuncio, c=S.cont[o.contenitore]||{};
+  const th=o.fotoId?`<span class="thumb" style="background-image:url('${photoUrl(o.fotoId)}')"></span>`:`<span class="thumb">${esc((o.nome||"?")[0].toUpperCase())}</span>`;
+  return `<article class="ad"><div class="top2">${th}<div style="min-width:0"><h4>${esc(a.titolo)}</h4><span class="note">${esc(o.nome)} · ${esc(c.codice)}</span></div></div>
+    <div class="facts">${a.prezzo?`<span class="price">${esc(a.prezzo)}</span>`:""}${a.stato?`<span>${esc(a.stato)}</span>`:""}${a.piattaforma?`<span>${esc(a.piattaforma)}</span>`:""}</div>
+    <p id="adtxt-${o.id}">${esc(a.descrizione)}</p>
+    <div class="row"><button class="btn dark" data-copy="${o.id}">Copia annuncio</button>${S.readOnly?"":`<button class="btn danger" data-sold="${o.id}">Venduto, togli dal catalogo</button>`}</div>
+  </article>`;
+}
+async function copyAd(b){
+  const o=S.ogg[b.dataset.copy]; if (!o?.annuncio) return; const a=o.annuncio;
+  const txt=`${a.titolo}\n\n${a.descrizione}${a.prezzo?"\n\nPrezzo: "+a.prezzo:""}`;
+  try{ await navigator.clipboard.writeText(txt); toast("Annuncio copiato"); }
+  catch{ const el=$("#adtxt-"+o.id); const r=document.createRange(); r.selectNodeContents(el); const sel=getSelection(); sel.removeAllRanges(); sel.addRange(r); toast("Testo selezionato: tieni premuto e copia"); }
+}
+async function soldItem(b){
+  const o=S.ogg[b.dataset.sold]; if (!o) return;
+  if (!b.dataset.sure){ b.dataset.sure=1; b.textContent="Tocca ancora per togliere "+o.nome; return; }
+  try{ await S.db.doc("oggetti/"+o.id).delete(); S.sel.delete(o.id); toast("Tolto dal catalogo"); }catch(e){ dbErr(e); }
+}
+async function makeAds(){
+  const ids=[...S.sel].filter(id=>S.ogg[id]);
+  if (!ids.length || !S.sample) return;
+  S.adsBusy=true; render();
+  try{
+    const r=await API.req("POST","api/ai/annunci",{ids});
+    S.sel.clear(); await sync();
+    toast(r.fatti?`${r.fatti} annunc${r.fatti===1?"io pronto":"i pronti"}`:"Nessun annuncio scritto, riprova");
+  }catch(e){ toast(e.message||"Non sono riuscito a scrivere gli annunci, riprova"); }
+  finally{ S.adsBusy=false; if (S.view==="svuota") render(); }
+}
+
+/* ---------- etichette ---------- */
+function sheetHtml(conts){
+  const cells=conts.map(c=>`<div class="l"><div class="q">${qrSvg(qrText(c.codice))}</div><div class="t"><b>${esc(c.codice)}</b><span class="n">${esc(c.nome)}</span><span class="p">${esc(c.ambito)}${c.posizione?" · "+esc(c.posizione):""}</span></div></div>`).join("");
+  return `<!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Etichette Gavone</title>
+<style>@page{size:A4;margin:0}*{box-sizing:border-box}body{margin:0;font-family:"Arial Narrow",Arial,sans-serif;color:#000;background:#fff}
+.g{width:210mm;display:grid;grid-template-columns:repeat(3,70mm);grid-auto-rows:37.125mm}
+.l{display:grid;grid-template-columns:29mm 1fr;align-items:center;gap:2mm;padding:3mm;overflow:hidden;outline:.1mm dashed #ccc}
+.q svg{width:29mm;height:29mm;display:block}.t{display:grid;gap:1mm;min-width:0}
+b{font-size:7mm;letter-spacing:.6mm;line-height:1;background:#000;color:#fff;padding:1mm 1.5mm;justify-self:start}
+.n{font-size:3.6mm;font-weight:700;line-height:1.15}.p{font-size:2.8mm;line-height:1.15}
+@media print{.l{outline:none}}</style></head><body><div class="g">${cells}</div></body></html>`;
+}
+async function labelPng(c){
+  await document.fonts?.ready;
+  const W=600,H=360,cv=document.createElement("canvas"); cv.width=W; cv.height=H;
+  const x=cv.getContext("2d"); x.fillStyle="#fff"; x.fillRect(0,0,W,H);
+  const m=qrMatrix(qrText(c.codice)), n=m.length, size=300, cell=Math.floor(size/n), off=30+(size-cell*n)/2;
+  x.fillStyle="#000"; for (let r=0;r<n;r++) for (let k=0;k<n;k++) if (m[r][k]) x.fillRect(off+k*cell, off+r*cell, cell, cell);
+  const L=350; x.fillStyle="#000"; x.fillRect(L,40,W-L-24,74);
+  x.fillStyle="#fff"; x.font="800 62px 'Big Shoulders Display', Impact, sans-serif"; x.textBaseline="middle"; x.fillText(c.codice, L+12, 80, W-L-48);
+  x.fillStyle="#000"; x.font="700 30px 'Atkinson Hyperlegible', Arial, sans-serif";
+  wrapText(x, c.nome, L, 160, W-L-24, 36, 3);
+  x.font="400 22px 'Atkinson Hyperlegible', Arial, sans-serif";
+  wrapText(x, c.ambito+(c.posizione?" · "+c.posizione:""), L, 300, W-L-24, 26, 2);
+  return await new Promise(r=>cv.toBlob(r,"image/png"));
+}
+function wrapText(x,t,X,Y,maxW,lh,maxL){
+  const w=String(t).split(/\s+/); let line="", n=0;
+  for (let i=0;i<w.length;i++){ const test=line?line+" "+w[i]:w[i]; if (x.measureText(test).width>maxW && line){ x.fillText(line,X,Y+n*lh); n++; line=w[i]; if (n>=maxL-1){ line=w.slice(i).join(" "); break; } } else line=test; }
+  if (line) x.fillText(line,X,Y+n*lh,maxW);
+}
+function openLabel(c){
+  sheet(`<h3>Etichetta</h3>
+    <div class="qrprev">${qrSvg(qrText(c.codice))}<div><b>${esc(c.codice)}</b><span><strong>${esc(c.nome)}</strong></span><span>${esc(c.ambito)}${c.posizione?" · "+esc(c.posizione):""}</span></div></div>
+    <p class="note">${QR_BASE?"Il QR apre direttamente questo contenitore anche dalla fotocamera del telefono.":"Il QR si legge con il tasto Scansiona dell'app."} Il codice si può anche scrivere a mano nella ricerca.</p>
+    <button class="btn primary" id="png">PNG 50×30 mm per stampante termica</button>
+    <button class="btn ghost" id="a4">Foglio A4 con solo questa</button>
+    <button class="btn ghost" data-close>Chiudi</button>`);
+  $("#png").onclick=async()=>saveFile(`etichetta-${c.codice}.png`, await labelPng(c), "image/png");
+  $("#a4").onclick=()=>openSheetPage([c.id]);
+}
+
+/* ---------- fogli ---------- */
+function sheet(html){
+  const r=$("#sheetRoot");
+  r.innerHTML=`<div class="sheet-bg" id="sbg"><div class="sheet" role="dialog" aria-modal="true">${html}</div></div>`;
+  $("#sbg").addEventListener("click",e=>{ if (e.target.id==="sbg" && !closeSheet.locked) closeSheet(); });
+  r.querySelectorAll("[data-close]").forEach(b=>b.onclick=closeSheet);
+  r.querySelector("input:not([type=checkbox]):not([type=file]),select")?.focus({preventScroll:true});
+}
+function closeSheet(){ stopCam(); $("#sheetRoot").innerHTML=""; closeSheet.locked=false; }
+
+function openAmbitoForm(){
+  sheet(`<h3>Nuovo luogo</h3>
+    <div class="field"><label for="an">Nome</label><input id="an" placeholder="Es. Cantina mamma"></div>
+    <div class="field"><label for="ap">Sigla di 3 lettere per i codici</label><input id="ap" maxlength="3" placeholder="CNT" style="text-transform:uppercase"></div>
+    <div class="row"><button class="btn dark" id="aok">Aggiungi</button><button class="btn ghost" data-close>Annulla</button></div>`);
+  $("#an").addEventListener("input",()=>{ if (!$("#ap").dataset.t) $("#ap").value=norm($("#an").value).replace(/[^a-z]/g,"").slice(0,3).toUpperCase(); });
+  $("#ap").addEventListener("input",()=>$("#ap").dataset.t=1);
+  $("#aok").onclick=async()=>{
+    const nome=$("#an").value.trim(), pre=$("#ap").value.trim().toUpperCase().replace(/[^A-Z]/g,"");
+    if (!nome || pre.length<2) return toast("Servono nome e sigla");
+    if (S.ambiti.some(a=>a.nome===nome||a.prefisso===pre)) return toast("Nome o sigla già usati");
+    const amb=[...S.ambiti,{nome,prefisso:pre}];
+    try { await S.db.doc("config/impostazioni").set({ambiti:amb}); S.ambito=nome; closeSheet(); render(); } catch(e){ dbErr(e); }
+  };
+}
+
+function openContForm(c){
+  if (!S.db) return toast("Archivio non ancora pronto, riprova");
+  const amb=c?c.ambito:S.ambito;
+  const used=[...new Set(Object.values(S.cont).filter(x=>x.ambito===amb).map(x=>x.posizione).filter(Boolean))];
+  const sugg=[...new Set([...used,...(POSIZIONI[amb]||[])])];
+  sheet(`<h3>${c?"Modifica contenitore":"Nuovo contenitore"}</h3>
+    <div><span class="tape big" id="cc">${esc(c?c.codice:nextCode(amb))}</span></div>
+    <div class="field"><label for="cn">Cosa è</label><input id="cn" value="${esc(c?.nome)}" placeholder="Es. Cassetta attrezzi rossa"></div>
+    <div class="two">
+      <div class="field"><label for="ca">Luogo</label><select id="ca" ${c?"disabled":""}>${S.ambiti.map(a=>`<option ${a.nome===amb?"selected":""}>${esc(a.nome)}</option>`).join("")}</select></div>
+      <div class="field"><label for="cp">Dove si trova</label><input id="cp" list="cpl" value="${esc(c?.posizione)}" placeholder="Es. Gavone posteriore"><datalist id="cpl">${sugg.map(s=>`<option value="${esc(s)}">`).join("")}</datalist></div>
+    </div>
+    <div class="field"><label for="cno">Note</label><textarea id="cno" placeholder="Facoltative">${esc(c?.note)}</textarea></div>
+    <div class="row"><button class="btn dark" id="cok">${c?"Salva":"Crea"}</button><button class="btn ghost" data-close>Annulla</button></div>
+    ${c?`<button class="btn danger" id="cdel">Elimina contenitore</button>`:""}`);
+  if (!c) $("#ca").addEventListener("change",()=>$("#cc").textContent=nextCode($("#ca").value));
+  $("#cok").onclick=async()=>{
+    const nome=$("#cn").value.trim(); if (!nome) return toast("Scrivi cosa è il contenitore");
+    const data={nome, posizione:$("#cp").value.trim(), note:$("#cno").value.trim(), aggiornato:now()};
+    try{
+      if (c){ await S.db.doc("contenitori/"+c.id).update(data); closeSheet(); toast("Salvato"); }
+      else {
+        const a=$("#ca").value; const ref=S.db.collection("contenitori").doc();
+        const full={...data, ambito:a, codice:nextCode(a), creato:now()};
+        await ref.set(full); S.cont[ref.id]={id:ref.id,...full};
+        closeSheet(); S.current=ref.id; S.ambito=a; go("scatola"); toast(`Creato ${full.codice}`);
+      }
+    }catch(e){ dbErr(e); }
+  };
+  $("#cdel")?.addEventListener("click",async e=>{
+    const n=itemsIn(c.id).length;
+    if (n) return toast(`Dentro ci sono ${n} oggetti: spostali o eliminali prima`);
+    if (!e.target.dataset.sure){ e.target.dataset.sure=1; e.target.textContent="Tocca ancora per eliminare "+c.codice; return; }
+    try{ await S.db.doc("contenitori/"+c.id).delete(); closeSheet(); go("scatole"); toast("Eliminato"); }catch(err){ dbErr(err); }
+  });
+}
+
+function openItemForm(o, cid){
+  const isNew=!o; o=o||{nome:"",quantita:1,contenitore:cid,categoria:"Varie"};
+  const conts=contList(null);
+  sheet(`<h3>${isNew?"Nuovo oggetto":"Oggetto"}</h3>
+    ${o.fotoId?`<img class="big-photo" src="${photoUrl(o.fotoId)}" alt="Foto di ${esc(o.nome)}">`:""}
+    ${isNew?"":`<div class="usage"><span>${o.usato?`Usato l'ultima volta il <b>${fmtDate(o.usato)}</b>`:"Mai segnato come usato"}</span>${S.readOnly?"":`<button class="btn ghost" id="oused" style="min-height:38px;padding:8px 12px">L'ho usato oggi</button>`}</div>`}
+    <div class="field"><label for="on">Nome</label><input id="on" value="${esc(o.nome)}" placeholder="Es. Prolunga 25 m"></div>
+    <div class="two">
+      <div class="field"><label for="oq">Quantità</label><input id="oq" type="number" min="0" inputmode="numeric" value="${o.quantita??1}"></div>
+      <div class="field"><label for="ocat">Categoria</label><select id="ocat">${CATEGORIE.map(k=>`<option ${k===o.categoria?"selected":""}>${k}</option>`).join("")}</select></div>
+    </div>
+    <div class="field"><label for="od">Dettagli</label><input id="od" value="${esc([o.dettagli,o.marca].filter(Boolean).join(", "))}" placeholder="Colore, marca, misura…"></div>
+    <div class="field"><label for="oc">Contenitore</label><select id="oc">${conts.map(c=>`<option value="${c.id}" ${c.id===o.contenitore?"selected":""}>${esc(c.codice)} · ${esc(c.nome)} (${esc(c.ambito)})</option>`).join("")}</select></div>
+    <div class="field"><label for="ono">Note</label><input id="ono" value="${esc(o.note)}" placeholder="Es. presa in prestito da Mirko"></div>
+    ${S.readOnly?"":`<div class="row"><button class="btn dark" id="ook">Salva</button><button class="btn ghost" data-close>Annulla</button></div>
+    ${isNew?"":`<button class="btn danger" id="odel">Elimina oggetto</button>`}`}
+    ${S.readOnly?`<button class="btn ghost" data-close>Chiudi</button>`:""}`);
+  if (S.readOnly) return;
+  $("#oused")?.addEventListener("click",async e=>{
+    try{ await S.db.doc("oggetti/"+o.id).update({usato:now()}); e.target.disabled=true; e.target.textContent="Segnato"; e.target.previousElementSibling.innerHTML=`Usato l'ultima volta il <b>${fmtDate(now())}</b>`; }catch(err){ dbErr(err); }
+  });
+  $("#ook").onclick=async()=>{
+    const nome=$("#on").value.trim(); if (!nome) return toast("Scrivi il nome");
+    const data={nome, quantita:Math.max(0,parseInt($("#oq").value,10)||0), categoria:$("#ocat").value, dettagli:$("#od").value.trim(), marca:"", note:$("#ono").value.trim(), contenitore:$("#oc").value, aggiornato:now()};
+    try{
+      if (isNew) await S.db.collection("oggetti").doc().set({...data, parole:[], fotoId:null, creato:now()});
+      else await S.db.doc("oggetti/"+o.id).update(data);
+      const moved=!isNew && data.contenitore!==o.contenitore;
+      closeSheet(); toast(moved?`Spostato in ${S.cont[data.contenitore]?.codice}`:"Salvato");
+    }catch(e){ dbErr(e); }
+  };
+  $("#odel")?.addEventListener("click",async e=>{
+    if (!e.target.dataset.sure){ e.target.dataset.sure=1; e.target.textContent="Tocca ancora per eliminare"; return; }
+    try{ await S.db.doc("oggetti/"+o.id).delete(); closeSheet(); toast("Eliminato"); }catch(err){ dbErr(err); }
+  });
+}
+
+/* ---------- scansione ---------- */
+function openScan(){
+  const live=!!navigator.mediaDevices?.getUserMedia;
+  sheet(`<h3>Scansiona</h3>
+    <p class="note">Inquadra l'etichetta del contenitore: si apre il suo contenuto.</p>
+    ${live?`<div class="cam" id="cam" hidden><video id="vid" playsinline muted autoplay></video><span class="mirino"></span></div><button class="btn primary" id="liveBtn" type="button">Inquadra con la fotocamera</button>`:""}
+    <label class="btn ${live?"ghost":"primary"} pick"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Fotografa l'etichetta<input type="file" id="scanIn" accept="image/*" capture="environment"></label>
+    <div id="scanMsg"></div>
+    <form class="search" id="codeForm"><input id="codeIn" placeholder="Oppure scrivi il codice, es. CMP-03" autocapitalize="characters" aria-label="Codice del contenitore"><button class="btn dark">Apri</button></form>
+    <button class="btn ghost" data-close>Chiudi</button>`);
+  $("#liveBtn")?.addEventListener("click",startCam);
+  $("#scanIn").addEventListener("change",async e=>{
+    const f=e.target.files[0]; e.target.value=""; if (!f) return;
+    $("#scanMsg").innerHTML=`<div class="thinking"><span class="dots"><i></i><i></i><i></i></span> Leggo il QR…</div>`;
+    try{
+      const {canvas}=await shrink(f,1600,.9);
+      const txt=decodeQR(canvas);
+      if (!txt) { $("#scanMsg").innerHTML=`<p class="note" style="color:var(--warn)">Non trovo un QR nella foto. Avvicinati e tieni l'etichetta dritta e illuminata.</p>`; return; }
+      openByCode(codeFromScan(txt), true);
+    }catch{ $("#scanMsg").innerHTML=`<p class="note" style="color:var(--warn)">Non riesco ad aprire questa foto.</p>`; }
+  });
+  $("#codeForm").addEventListener("submit",e=>{ e.preventDefault(); openByCode($("#codeIn").value, true); });
+}
+async function startCam(){
+  const btn=$("#liveBtn"), vid=$("#vid");
+  try{
+    S.stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}},audio:false});
+  }catch(e){
+    $("#scanMsg").innerHTML=`<p class="note" style="color:var(--warn)">${e?.name==="NotAllowedError"?"Hai negato la fotocamera. Puoi riattivarla in Impostazioni → Safari → Fotocamera, oppure usa Fotografa l'etichetta.":"La fotocamera non si apre: usa Fotografa l'etichetta."}</p>`;
+    return;
+  }
+  if (!vid){ stopCam(); return; }
+  vid.srcObject=S.stream; $("#cam").hidden=false; btn.hidden=true;
+  try{ await vid.play(); }catch{}
+  const cv=document.createElement("canvas"), ctx=cv.getContext("2d",{willReadFrequently:true});
+  let last=0;
+  const tick=t=>{
+    if (!S.stream || !document.body.contains(vid)) return;
+    if (t-last>180 && vid.videoWidth){
+      last=t;
+      const k=Math.min(1,640/Math.max(vid.videoWidth,vid.videoHeight));
+      cv.width=Math.round(vid.videoWidth*k); cv.height=Math.round(vid.videoHeight*k);
+      ctx.drawImage(vid,0,0,cv.width,cv.height);
+      const r=typeof jsQR==="function"?jsQR(ctx.getImageData(0,0,cv.width,cv.height).data,cv.width,cv.height,{inversionAttempts:"dontInvert"}):null;
+      if (r && r.data){ navigator.vibrate?.(60); if (openByCode(codeFromScan(r.data), true)) return; }
+    }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+function stopCam(){ if (S.stream){ S.stream.getTracks().forEach(t=>t.stop()); S.stream=null; } }
+
+function openByCode(code, fromSheet){
+  const c=byCode(code);
+  if (!c){ if (fromSheet) $("#scanMsg").innerHTML=`<p class="note" style="color:var(--warn)">Nessun contenitore con codice ${esc(code)}.</p>`; else toast("Nessun contenitore "+code); return false; }
+  closeSheet(); S.current=c.id; S.ambito=c.ambito; go("scatola"); return true;
+}
+
+/* ---------- riconoscimento foto ---------- */
+async function analyzePhotos(c, files){
+  if (!S.db) return toast("Archivio non ancora pronto, riprova");
+  closeSheet.locked=true;
+  const ctl=new AbortController();
+  const dots='<span class="dots"><i></i><i></i><i></i></span>';
+  sheet(`<h3>Contenuto di ${esc(c.codice)}</h3><div class="photos" id="pp"></div><div id="aiMsg" class="thinking">${dots} Preparo le foto…</div><div id="revList" style="display:grid;gap:8px"></div><div class="row" id="revAct"><button class="btn ghost" id="aiStop">Annulla</button></div>`);
+  $("#aiStop").onclick=()=>{ ctl.abort(); closeSheet(); };
+  let shots;
+  try{ shots=await Promise.all(files.map(f=>shrink(f))); }
+  catch{ closeSheet(); return toast("Non riesco ad aprire le foto"); }
+  $("#pp").innerHTML=shots.map(s=>`<div style="background-image:url('${s.url}')"></div>`).join("");
+  $("#aiMsg").innerHTML=`${dots} Carico le foto…`;
+  let ids;
+  try{ ids=await Promise.all(shots.map(s=>API.req("POST","api/foto",s.blob,ctl.signal).then(r=>r.id))); }
+  catch(e){ if (ctl.signal.aborted) return; closeSheet(); return toast("Caricamento delle foto non riuscito: "+e.message); }
+  let found=[];
+  if (S.sample){
+    $("#aiMsg").innerHTML=`${dots} Riconosco gli oggetti nelle foto…`;
+    try{
+      const r=await API.req("POST","api/ai/riconosci",{contenitore:c.id,foto:ids,categorie:CATEGORIE},ctl.signal);
+      found=(r.oggetti||[]).map(o=>({...o,_shot:Math.min(shots.length-1,Math.max(0,parseInt(o.shot,10)||0))}));
+    }catch(e){
+      if (ctl.signal.aborted) return;
+      toast((e.message||"Riconoscimento non riuscito")+" Scrivi i nomi a mano.");
+    }
+  }
+  if (!found.length) found=shots.map((s,i)=>({nome:"",quantita:1,categoria:"Varie",dettagli:"",_shot:i}));
+  if (ctl.signal.aborted || !$("#aiMsg")) return;
+  showReview(c, shots, ids, found);
+}
+function showReview(c, shots, ids, found){
+  closeSheet.locked=true;
+  $("#aiMsg").innerHTML=`<span>${found.some(f=>f.nome)?`Ho trovato <b>${found.length}</b> oggetti. Correggi quello che serve e togli la spunta a ciò che non vuoi salvare.`:"Scrivi cosa c'è in ogni foto."}</span>`;
+  $("#revList").innerHTML=found.map((o,i)=>`<div class="rev" data-r="${i}">
+    <input type="checkbox" checked aria-label="Salva questo oggetto">
+    <span class="thumb" style="background-image:url('${shots[o._shot].url}')"></span>
+    <div class="f">
+      <input class="nm" value="${esc(o.nome)}" placeholder="Nome oggetto" aria-label="Nome">
+      <input class="dt" value="${esc([o.dettagli,o.marca].filter(Boolean).join(", "))}" placeholder="Dettagli" aria-label="Dettagli">
+      <div class="q"><select class="ct" aria-label="Categoria" style="border:1.5px solid var(--line);background:var(--bg);border-radius:6px;padding:6px;min-width:0">${CATEGORIE.map(k=>`<option ${k===o.categoria?"selected":""}>${k}</option>`).join("")}</select><input class="qt" type="number" min="1" inputmode="numeric" value="${Math.max(1,parseInt(o.quantita,10)||1)}" aria-label="Quantità"></div>
+    </div></div>`).join("");
+  $("#revList").querySelectorAll(".rev input[type=checkbox]").forEach(cb=>cb.onchange=()=>cb.closest(".rev").classList.toggle("off",!cb.checked));
+  $("#revAct").innerHTML=`<button class="btn primary" id="revOk">Salva in ${esc(c.codice)}</button><button class="btn ghost" id="revNo">Annulla</button>`;
+  $("#revNo").onclick=closeSheet;
+  $("#revOk").onclick=async e=>{
+    const rows=[...document.querySelectorAll(".rev")].filter(r=>r.querySelector("input[type=checkbox]").checked);
+    const items=rows.map(r=>{ const o=found[+r.dataset.r]; return {
+      nome:r.querySelector(".nm").value.trim(), dettagli:r.querySelector(".dt").value.trim(), marca:"",
+      categoria:r.querySelector(".ct").value, quantita:Math.max(1,parseInt(r.querySelector(".qt").value,10)||1),
+      parole:Array.isArray(o.parole)?o.parole.slice(0,8).map(String):[], note:"", contenitore:c.id,
+      fotoId:ids[o._shot]||null, creato:now(), aggiornato:now() }; }).filter(o=>o.nome);
+    if (!items.length) return toast("Niente da salvare");
+    e.target.disabled=true; e.target.textContent="Salvo…";
+    let ok=0;
+    for (const it of items){ try{ await S.db.collection("oggetti").doc().set(it); ok++; }catch(err){ dbErr(err); break; } }
+    closeSheet(); toast(`${ok} oggett${ok===1?"o":"i"} salvat${ok===1?"o":"i"} in ${c.codice}`);
+  };
+}
+
+/* ---------- domanda ---------- */
+async function ask(){
+  const q=S.q.trim(); if (!q) return;
+  S.asking?.abort();
+  const ctl=new AbortController(); S.asking=ctl; S.answer=null; renderAnswer();
+  try{
+    const r=await API.req("POST","api/ai/chiedi",{domanda:q},ctl.signal);
+    if (S.asking===ctl){ S.answer={risposta:String(r?.risposta||""), id:Array.isArray(r?.id)?r.id.map(String):[]}; }
+  }catch(e){
+    if (!ctl.signal.aborted) toast(e.message||"Non sono riuscito a rispondere, riprova");
+  }finally{ if (S.asking===ctl) S.asking=null; renderAnswer(); }
+}
+
+/* ---------- eventi ---------- */
+document.addEventListener("click",e=>{
+  const t=e.target.closest("button,[data-item]"); if (!t) return;
+  if (t.dataset.go){ const v=t.dataset.go; if (v==="scan") return openScan(); if (v==="nuovo") return openContForm(); return go(v); }
+  if (t.dataset.amb){ S.ambito=t.dataset.amb; try{ localStorage.setItem("gavone.ambito",S.ambito); }catch{} if (S.view==="scatola") S.view="scatole"; render(); return; }
+  if (t.hasAttribute("data-addamb")){ if (!S.db) return toast("Archivio non ancora pronto, riprova"); return openAmbitoForm(); }
+  if (t.dataset.open){ S.current=t.dataset.open; go("scatola"); return; }
+  if (t.dataset.shot){ openShot(t.dataset.shot); return; }
+  if (t.dataset.soglia!==undefined){ S.soglia=+t.dataset.soglia; render(); return; }
+  if (t.dataset.qty){ e.stopPropagation(); const o=S.ogg[t.dataset.id]; if (!o) return; const v=Math.max(0,(+o.quantita||0)+(+t.dataset.qty)); S.db.doc("oggetti/"+o.id).update({quantita:v,aggiornato:now()}).catch(dbErr); return; }
+  if (t.closest("[data-stop]")) return;
+  if (t.dataset.item){
+    const o=S.ogg[t.dataset.item]; if (!o) return;
+    if (S.view==="scatola") return openItemForm(o);
+    S.current=o.contenitore; S.highlight=o.id; S.view="scatola"; render(); window.scrollTo(0,0);
+    requestAnimationFrame(()=>document.querySelector(`[data-item="${o.id}"]`)?.scrollIntoView({block:"center"}));
+  }
+});
+document.addEventListener("keydown",e=>{
+  if (e.key==="Escape" && $("#sbg") && !closeSheet.locked) closeSheet();
+  if ((e.key==="Enter"||e.key===" ") && e.target.matches?.("[data-item]")){ e.preventDefault(); e.target.click(); }
+});
+function tryHash(){
+  const h=decodeURIComponent((location.hash||"").slice(1)); if (!h) return;
+  if (S.loaded.c){ openByCode(h,false); }
+  else S.pendingHash=h;
+}
+window.addEventListener("hashchange",tryHash);
+
+/* ---------- archivio nel telefono (IndexedDB) ---------- */
+const IDB={db:null};
+function idbOpen(){
+  return new Promise((res,rej)=>{
+    const r=indexedDB.open("gavone",1);
+    r.onupgradeneeded=()=>{ const d=r.result; for (const n of ["docs","foto","meta"]) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n); };
+    r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); r.onblocked=()=>rej(new Error("archivio bloccato"));
+  });
+}
+function idbReq(store,mode,fn){
+  return new Promise((res,rej)=>{
+    const t=IDB.db.transaction(store,mode); const q=fn(t.objectStore(store)); let out;
+    if (q) q.onsuccess=()=>{ out=q.result; };
+    t.oncomplete=()=>res(out); t.onerror=()=>rej(t.error); t.onabort=()=>rej(t.error||new Error("scrittura annullata"));
+  });
+}
+const idbGet=(st,k)=>idbReq(st,"readonly",s=>s.get(k));
+const idbPut=(st,k,v)=>idbReq(st,"readwrite",s=>s.put(v,k));
+const idbDel=(st,k)=>idbReq(st,"readwrite",s=>s.delete(k));
+function idbAll(st){
+  return new Promise((res,rej)=>{
+    const out=[], t=IDB.db.transaction(st,"readonly"), q=t.objectStore(st).openCursor();
+    q.onsuccess=()=>{ const c=q.result; if (c){ out.push([c.key,c.value]); c.continue(); } };
+    t.oncomplete=()=>res(out); t.onerror=()=>rej(t.error);
+  });
+}
+function idbPutMany(st,entries){
+  return new Promise((res,rej)=>{
+    const t=IDB.db.transaction(st,"readwrite"), s=t.objectStore(st);
+    for (const [k,v] of entries) s.put(v,k);
+    t.oncomplete=()=>res(); t.onerror=()=>rej(t.error); t.onabort=()=>rej(t.error||new Error("scrittura annullata"));
+  });
+}
+const CFG={apiKey:"",modelloFoto:"claude-sonnet-5-5",modelloTesto:"claude-haiku-5-5"};
+let LV=0;
+function hexId(){ return [...crypto.getRandomValues(new Uint8Array(16))].map(b=>b.toString(16).padStart(2,"0")).join(""); }
+function httpErr(status,msg){ const e=new Error(msg); e.status=status; return e; }
+const KEY_RE=/^(contenitori|oggetti|config)\/[A-Za-z0-9_-]{1,64}$/, ID_RE=/^[A-Za-z0-9_-]{1,64}$/;
+
+/* stesse richieste della versione con server, risolte qui dentro */
+const API = {
+  async req(method, url, body, signal){
+    url=url.replace(/^\.?\//,"");
+    if (!IDB.db) throw httpErr(503,"Archivio non ancora pronto");
+    let m;
+    if (method==="GET" && url.startsWith("api/state")){
+      const v=new URLSearchParams(url.split("?")[1]||"").get("v");
+      if (v===String(LV)) return {changed:false,v:LV};
+      const cont=[], ogg=[]; let amb=[];
+      for (const [k,d] of await idbAll("docs")){
+        const i=k.indexOf("/"), c=k.slice(0,i), id=k.slice(i+1);
+        if (c==="contenitori") cont.push({...d,id}); else if (c==="oggetti") ogg.push({...d,id}); else if (k==="config/impostazioni") amb=d.ambiti||[];
+      }
+      return {v:LV, contenitori:cont, oggetti:ogg, ambiti:amb, ai:!!CFG.apiKey, qr_base:""};
+    }
+    if ((m=url.match(/^api\/(contenitori|oggetti|config)\/([A-Za-z0-9_-]{1,64})$/))){
+      const k=m[1]+"/"+m[2];
+      if (method==="PUT"){ const d={...body}; delete d.id; await idbPut("docs",k,d); LV++; return {ok:true}; }
+      if (method==="PATCH"){
+        const cur=await idbGet("docs",k); if (!cur) throw httpErr(404,"Scheda non trovata");
+        const d={...cur};
+        for (const [kk,vv] of Object.entries(body||{})){ if (kk==="id") continue; if (vv && typeof vv==="object" && vv.__delete__===true) delete d[kk]; else d[kk]=vv; }
+        await idbPut("docs",k,d); LV++; return {ok:true};
+      }
+      if (method==="DELETE"){ await idbDel("docs",k); LV++; return {ok:true}; }
+    }
+    if (method==="POST" && url==="api/foto"){
+      const id=hexId(); await idbPut("foto",id,body); FOTOURL[id]=URL.createObjectURL(body); return {id};
+    }
+    if (method==="POST" && url.startsWith("api/ai/")){
+      const f=AI[url.slice(7)]; if (!f) throw httpErr(404,"Azione sconosciuta");
+      return await f(body||{},signal);
+    }
+    throw httpErr(404,"Non trovato");
+  }
+};
+function newId(){ const a="abcdefghijklmnopqrstuvwxyz0123456789", r=crypto.getRandomValues(new Uint8Array(20)); let s=""; for (const b of r) s+=a[b%36]; return s; }
+function mapOf(coll){ return coll==="contenitori"?S.cont:coll==="oggetti"?S.ogg:null; }
+function docRef(coll,id){
+  return { id,
+    async set(d){ await API.req("PUT",`api/${coll}/${id}`,d); const m=mapOf(coll); if (m) m[id]={id,...d}; if (coll==="config"&&Array.isArray(d.ambiti)) S.ambiti=d.ambiti; refresh(); soon(); },
+    async update(d){ await API.req("PATCH",`api/${coll}/${id}`,d); const m=mapOf(coll); if (m&&m[id]) m[id]={...m[id],...d}; refresh(); soon(); },
+    async delete(){ await API.req("DELETE",`api/${coll}/${id}`); const m=mapOf(coll); if (m) delete m[id]; refresh(); soon(); } };
+}
+const DB = { doc(p){ const [c,i]=p.split("/"); return docRef(c,i); }, collection(c){ return { doc(id){ return docRef(c,id||newId()); } }; } };
+
+let SV=-1, syncT=null;
+async function sync(){
+  clearTimeout(syncT);
+  if (!IDB.db) return;
+  const st=await API.req("GET","api/state?v="+SV);
+  S.connected=true; S.db=DB; S.dl=true;
+  if (st.changed===false) return;
+  SV=st.v;
+  S.cont=Object.fromEntries((st.contenitori||[]).map(c=>[c.id,c]));
+  S.ogg=Object.fromEntries((st.oggetti||[]).map(o=>[o.id,o]));
+  if (Array.isArray(st.ambiti)&&st.ambiti.length){ S.ambiti=st.ambiti.map(x=>({nome:String(x.nome),prefisso:String(x.prefisso)})); if (!S.ambiti.some(x=>x.nome===S.ambito)) S.ambito=S.ambiti[0].nome; }
+  if (!S.ambitoScelto){
+    S.ambitoScelto=true;
+    let mem=null; try{ mem=localStorage.getItem("gavone.ambito"); }catch{}
+    const conta=n=>Object.values(S.cont).filter(c=>c.ambito===n).length;
+    if (mem && S.ambiti.some(a=>a.nome===mem)) S.ambito=mem;
+    else if (!conta(S.ambito)){ const best=S.ambiti.map(a=>a.nome).sort((x,y)=>conta(y)-conta(x))[0]; if (best && conta(best)) S.ambito=best; }
+  }
+  S.sample=CFG.apiKey?true:null; QR_BASE="";
+  S.loaded.c=S.loaded.o=true;
+  renderBanner();
+  if (S.pendingHash){ const h=S.pendingHash; S.pendingHash=null; if (openByCode(h,false)) return; }
+  refresh();
+}
+function soon(){ clearTimeout(syncT); syncT=setTimeout(()=>sync().catch(console.warn),300); }
+
+/* ---------- intelligenza artificiale: chiamate dirette dal telefono ---------- */
+function blobB64(b){ return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(String(r.result).split(",")[1]||""); r.onerror=()=>rej(r.error); r.readAsDataURL(b); }); }
+function b64Blob(b64,type){ const bin=atob(b64), u=new Uint8Array(bin.length); for (let i=0;i<bin.length;i++) u[i]=bin.charCodeAt(i); return new Blob([u],{type}); }
+async function fotoBlock(id){ const b=await idbGet("foto",id); if (!b) return null; return {type:"image",source:{type:"base64",media_type:"image/jpeg",data:await blobB64(b)}}; }
+async function chiediClaude(model, content, maxTokens, signal){
+  if (!CFG.apiKey) throw new Error("Manca la chiave API: aggiungila in Altro → Riconoscimento foto.");
+  let r;
+  try{
+    r=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",signal,headers:{
+      "content-type":"application/json","x-api-key":CFG.apiKey,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+      body:JSON.stringify({model,max_tokens:maxTokens||4000,messages:[{role:"user",content}]})});
+  }catch(e){ if (e?.name==="AbortError") throw e; throw new Error("Per questa funzione serve internet: controlla la connessione."); }
+  let data=null; try{ data=await r.json(); }catch{}
+  if (!r.ok){
+    const msg=String(data?.error?.message||"").toLowerCase();
+    if (r.status===401) throw new Error("La chiave API non è valida: controllala in Altro.");
+    if (msg.includes("credit")||msg.includes("billing")) throw new Error("Credito API esaurito: ricaricalo su console.anthropic.com.");
+    if (r.status===404||msg.includes("model")) throw new Error(`Modello non disponibile (${model}): cambialo in Altro.`);
+    if (r.status===429) throw new Error("Troppe richieste in poco tempo: riprova tra un minuto.");
+    if (r.status>=500) throw new Error("Il servizio di Anthropic è sovraccarico: riprova tra poco.");
+    throw new Error(`Richiesta rifiutata (${r.status}).`);
+  }
+  return (data?.content||[]).filter(b=>b.type==="text").map(b=>b.text).join("");
+}
+function estraiJson(t){
+  t=String(t||"").trim();
+  const f=t.match(/```(?:json)?\s*([\s\S]*?)```/); if (f) t=f[1].trim();
+  try{ return JSON.parse(t); }catch{}
+  const a=[t.indexOf("{"),t.indexOf("[")].filter(i=>i>=0); const s=a.length?Math.min(...a):-1, e=Math.max(t.lastIndexOf("}"),t.lastIndexOf("]"));
+  if (s>=0 && e>s){ try{ return JSON.parse(t.slice(s,e+1)); }catch{} }
+  throw new Error("Risposta non leggibile, riprova.");
+}
+function promptRiconosci(c,n,cat){
+  return `Sto catalogando gli oggetti riposti in un contenitore, per poterli ritrovare in seguito.
+Contenitore: "${c.nome||""}" (codice ${c.codice||""}), luogo: ${c.ambito||""}${c.posizione?", posizione: "+c.posizione:""}.
+Ti mando ${n} foto, numerate da 1 a ${n} nell'ordine in cui arrivano.
+Elenca ogni oggetto distinto che si vede. Più pezzi identici = una sola voce con la quantità. Ignora il contenitore stesso, mani, sfondo e superficie d'appoggio.
+Per ogni oggetto:
+- nome: breve e comune in italiano, come lo cercherebbe una persona (es. "Caricabatterie USB-C", "Pinza", "Occhiali da sole")
+- categoria: una tra ${cat.join(", ")}
+- dettagli: colore, materiale, forma, misura, poche parole separate da virgole
+- marca: marca o modello se leggibili, altrimenti ""
+- parole: da 3 a 6 sinonimi o termini con cui qualcuno potrebbe cercarlo
+- quantita: numero di pezzi
+- foto: numero della foto in cui si vede meglio
+Rispondi solo con JSON in questa forma:
+{"oggetti":[{"nome":"Occhiali da vista","categoria":"Varie","dettagli":"tartarugati, marroni, montatura a goccia, acetato","marca":"","parole":["occhiali","lenti","montatura"],"quantita":1,"foto":1}]}`;
+}
+const AI={
+  async riconosci(body,signal){
+    const c=S.cont[body.contenitore]||{}, foto=(body.foto||[]).slice(0,40), cat=body.categorie||CATEGORIE, out=[];
+    for (let start=0; start<foto.length; start+=10){
+      const blocchi=(await Promise.all(foto.slice(start,start+10).map(fotoBlock))).filter(Boolean);
+      if (!blocchi.length) continue;
+      const n=blocchi.length;
+      const r=estraiJson(await chiediClaude(CFG.modelloFoto,[...blocchi,{type:"text",text:promptRiconosci(c,n,cat)}],4000,signal));
+      const arr=Array.isArray(r?.oggetti)?r.oggetti:Array.isArray(r)?r:[];
+      for (const o of arr){ if (!o||typeof o!=="object") continue; const k=Math.min(n,Math.max(1,parseInt(o.foto,10)||1)); out.push({...o,shot:start+k-1}); }
+    }
+    return {oggetti:out};
+  },
+  async chiedi(body,signal){
+    const q=String(body.domanda||"").trim().slice(0,500); if (!q) throw new Error("Scrivi cosa cerchi.");
+    const righe=Object.values(S.ogg).map(o=>{ const c=S.cont[o.contenitore]||{}; return [o.id,o.nome,[o.dettagli,o.marca,(o.parole||[]).join(" ")].filter(Boolean).join(", "),"x"+(o.quantita??1),`${c.codice||""} "${c.nome||""}"`,[c.ambito,c.posizione].filter(Boolean).join(", ")].join(" | "); });
+    if (!righe.length) return {risposta:"Il catalogo è ancora vuoto.",id:[]};
+    const prompt=`Sei l'assistente che sa dove sono riposte le cose in casa e nel camper.
+Inventario, una riga per oggetto: id | oggetto | dettagli | quantità | contenitore | dove si trova il contenitore
+${righe.join("\n").slice(0,200000)}
+
+Domanda: "${q}"
+
+Rispondi in italiano, breve e diretto, come una persona di famiglia: di' in quale contenitore si trova (codice e nome) e dove sta il contenitore. Se ci sono più candidati elencali. Se nell'inventario non c'è niente di adatto dillo chiaramente e, se esiste, indica l'oggetto più simile. Non inventare oggetti che non sono nell'inventario.
+Rispondi solo con JSON: {"risposta":"testo per l'utente","id":["id degli oggetti citati"]}`;
+    const r=estraiJson(await chiediClaude(CFG.modelloTesto,prompt,1500,signal));
+    return {risposta:String(r?.risposta||""), id:Array.isArray(r?.id)?r.id.map(String):[]};
+  },
+  async annunci(body,signal){
+    const items=(body.ids||[]).slice(0,20).map(id=>S.ogg[id]).filter(Boolean);
+    if (!items.length) throw new Error("Nessun oggetto selezionato.");
+    const blocchi=[], idx={};
+    for (const o of items){ if (o.fotoId && !idx[o.fotoId] && blocchi.length<10){ const b=await fotoBlock(o.fotoId); if (b){ blocchi.push(b); idx[o.fotoId]=blocchi.length; } } }
+    const righe=items.map((o,i)=>`${i+1} | ${o.nome} | ${[o.dettagli,o.marca].filter(Boolean).join(", ")||"-"} | quantità ${o.quantita??1} | ${idx[o.fotoId]?"foto "+idx[o.fotoId]:"nessuna foto"}`).join("\n");
+    const prompt=`Scrivi annunci in italiano per vendere oggetti usati su Subito.it, Vinted o Facebook Marketplace.
+Oggetti, uno per riga: numero | nome | dettagli | quantità | foto
+${righe}
+${blocchi.length?`Ti mando ${blocchi.length} foto numerate nell'ordine; in una foto possono esserci più oggetti, guarda solo quello indicato.`:"Non ci sono foto: basati sulla descrizione."}
+Per ogni oggetto:
+- titolo: massimo 60 caratteri, con marca e modello se si leggono
+- descrizione: 3-5 frasi oneste e concrete: cos'è, caratteristiche visibili, stato apparente, cosa è incluso. Non inventare specifiche tecniche o funzionamento che non si vedono; se servono, scrivi di chiederle o di provarlo al ritiro
+- stato: uno tra Nuovo, Come nuovo, Buono, Usato, Da riparare (stimato dalla foto)
+- prezzo: fascia indicativa in euro per l'usato in Italia, es. "10-15 €"
+- piattaforma: la più adatta tra Subito, Vinted, Marketplace
+Rispondi solo con JSON: {"annunci":[{"n":1,"titolo":"","descrizione":"","stato":"","prezzo":"","piattaforma":""}]}`;
+    const r=estraiJson(await chiediClaude(CFG.modelloFoto,[...blocchi,{type:"text",text:prompt}],4000,signal));
+    let fatti=0;
+    for (const a of (Array.isArray(r?.annunci)?r.annunci:[])){
+      const o=items[(parseInt(a.n,10)||0)-1]; if (!o || !a.titolo) continue;
+      await API.req("PATCH",`api/oggetti/${o.id}`,{annuncio:{titolo:String(a.titolo).slice(0,90),descrizione:String(a.descrizione||""),stato:String(a.stato||""),prezzo:String(a.prezzo||""),piattaforma:String(a.piattaforma||""),creato:now()}});
+      fatti++;
+    }
+    return {fatti};
+  }
+};
+
+/* ---------- backup ---------- */
+async function esportaBackup(btn){
+  if (!IDB.db) return toast("Archivio non ancora pronto, riprova");
+  const label=btn?.textContent; if (btn){ btn.disabled=true; btn.textContent="Preparo…"; }
+  try{
+    const docs={}, foto={};
+    for (const [k,d] of await idbAll("docs")) docs[k]=d;
+    for (const [k,b] of await idbAll("foto")) foto[k]=await blobB64(b);
+    const json=JSON.stringify({app:"gavone",formato:1,creato:now(),docs,foto});
+    const ok=await saveFile(`gavone-backup-${new Date().toISOString().slice(0,10)}.json`, new Blob([json],{type:"application/json"}), "application/json");
+    if (ok){ S.ultimoBackup=now(); await idbPut("meta","ultimoBackup",S.ultimoBackup); renderBanner(); if (S.view==="etichette") render(); toast("Backup pronto: salvalo in iCloud Drive"); }
+  }catch(e){ console.warn(e); toast("Non sono riuscito a preparare il backup"); }
+  finally{ if (btn && document.body.contains(btn)){ btn.disabled=false; btn.textContent=label; } }
+}
+async function importaBackup(file){
+  if (!IDB.db) return toast("Archivio non ancora pronto, riprova");
+  let d; try{ d=JSON.parse(await file.text()); }catch{ return toast("Questo file non è un backup di Gavone"); }
+  let docs={};
+  if (d && d.docs && typeof d.docs==="object") docs=d.docs;
+  else if (d && Array.isArray(d.contenitori)){
+    for (const c of d.contenitori){ const {id,...r}=c; docs["contenitori/"+id]=r; }
+    for (const o of d.oggetti||[]){ const {id,...r}=o; docs["oggetti/"+id]=r; }
+    if (Array.isArray(d.ambiti) && d.ambiti.length) docs["config/impostazioni"]={ambiti:d.ambiti};
+  } else return toast("Questo file non è un backup di Gavone");
+  const voci=Object.entries(docs).filter(([k,v])=>KEY_RE.test(k) && v && typeof v==="object");
+  const nc=voci.filter(([k])=>k.startsWith("contenitori/")).length, no=voci.filter(([k])=>k.startsWith("oggetti/")).length;
+  const foto=Object.entries(d.foto||{}).filter(([id,b])=>ID_RE.test(id) && typeof b==="string");
+  try{
+    await idbPutMany("docs",voci);
+    const blobs=foto.map(([id,b])=>[id,b64Blob(b,"image/jpeg")]);
+    await idbPutMany("foto",blobs);
+    for (const [id,b] of blobs){ if (FOTOURL[id]) URL.revokeObjectURL(FOTOURL[id]); FOTOURL[id]=URL.createObjectURL(b); }
+  }catch(e){ console.warn(e); return toast("Importazione non riuscita: spazio insufficiente o file danneggiato"); }
+  LV++; S.ambitoScelto=false; await sync();
+  toast(`Importati ${nc} contenitori, ${no} oggetti e ${foto.length} foto`);
+  go("cerca");
+}
+
+/* ---------- avvio ---------- */
+render();
+(async()=>{
+  try{ IDB.db=await idbOpen(); }
+  catch(e){ console.warn(e); S.noStorage=true; S.connected=true; renderBanner(); return; }
+  try{ const c=await idbGet("meta","impostazioni"); if (c) Object.assign(CFG,c); }catch{}
+  try{ S.ultimoBackup=await idbGet("meta","ultimoBackup")||""; }catch{}
+  try{ for (const [id,b] of await idbAll("foto")) FOTOURL[id]=URL.createObjectURL(b); }catch{}
+  try{ S.persistito=await navigator.storage?.persist?.(); }catch{}
+  await sync().catch(console.warn);
+  if (!S.loaded.c){ S.loaded.c=S.loaded.o=true; refresh(); }
+  tryHash();
+})();
+if ("serviceWorker" in navigator && (location.protocol==="https:" || ["localhost","127.0.0.1"].includes(location.hostname))){
+  navigator.serviceWorker.register("sw.js").catch(e=>console.warn("service worker",e));
+}
+function refresh(){
+  // aggiorna senza strappare il fuoco al campo di ricerca
+  if (S.view==="cerca" && $("#q")){ renderChips(); renderCount(); const b=$("#askBtn"); if (b) b.hidden=!(S.sample&&Object.keys(S.ogg).length); renderAnswer(); renderResults(); }
+  else render();
+}
+</script>
+</body>
+</html>
